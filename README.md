@@ -50,3 +50,6 @@ cd c/rendering/test
 gcc -DHAVE_TYPEOF -DHAVE_BUILTIN_CHOOSE_EXPR -DHAVE_BUILTIN_TYPES_COMPATIBLE_P -gdwarf-2 -g3 -std=c99 -Wstrict-prototypes `pkg-config --cflags --libs sdl` test_render.c main.c image_buf.c ../draw.c ../../rtu.c -lm
 ./a.out
 </pre>
+
+# Contact details
+E-mail me at kieran.white@hourglassapps.com
