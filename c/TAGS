@@ -1,0 +1,779 @@
+
+rendering/test/main.c,334
+uint32 tests_run=14,212
+#define max(22,418
+#define min(23,461
+#define abs(24,504
+#define sign(25,542
+static void line8(39,1008
+static void line16(119,2285
+static void line24(203,3824
+static void line32(291,5314
+static void line(372,6663
+#define DRAW_DIR_TEST 394,7120
+sint32 main_unit_tests(396,7155
+sint32 main(408,7388
+
+rendering/test/image_buf.c,28
+void image_buf_commit(6,63
+
+rendering/test/test_render.h,20
+#define TEST_H5,34
+
+rendering/test/image_buf.h,25
+#define IMAGE_BUF_H2,20
+
+rendering/test/orig_render.c,18
+void render(7,88
+
+rendering/test/test_render.c,18
+void render(7,88
+
+rendering/tile.h,20
+#define TILE_H2,15
+
+rendering/tile.c,151
+uint32 nextOrd=9,141
+uint32 tile_render(11,160
+void tile_init(37,937
+void tile_finalise(42,1031
+uint32 tile_size(47,1097
+void tile_reset(51,1170
+
+rendering/draw.c,6911
+void draw_init(17,286
+void draw_finalise(27,589
+draw_globals draw_globalsInitialFields(174,12626
+draw_globals* draw_globalsInit(189,12991
+void draw_globalsDestroy(202,13379
+bool draw_canvasSetup(212,13608
+void draw_canvasInit(226,13934
+void draw_canvasCheckAndClear(234,14160
+void draw_canvasWipe(262,15184
+void draw_canvasIgnoreDirt(288,16387
+float32 draw_test_blurWidth(292,16482
+static sint8 *draw_test_blotBBoxDims(draw_test_blotBBoxDims308,17209
+static sint8 *draw_test_adhoc_type_casting(draw_test_adhoc_type_casting318,17571
+static sint8 *draw_test_vertAng(draw_test_vertAng448,24752
+inline uint32 draw_toDir(483,25404
+inline bool draw_toXDom(490,25694
+inline void draw_setDir(494,25793
+inline void draw_setDDir(505,26091
+inline uint32 draw_antiAlias(516,26403
+inline float32 draw_rangeDist(527,26927
+void draw_gradInitConsts(541,27271
+uint32 draw_gradsVert2Iter(546,27396
+uint32 draw_findFirstIter4Row(549,27474
+static sint8 *draw_test_findFirstIter4Row(draw_test_findFirstIter4Row582,29365
+void draw_iterRangeInit(624,30315
+sint32 draw_scanSpanIterInc(711,34898
+sint32 draw_gradIterInc(715,35015
+static sint8 *draw_test_gradIterInc(draw_test_gradIterInc763,36761
+draw_range draw_scanEndFindNextEnd(850,39426
+draw_range draw_scanEndFindPrevStart(863,40071
+draw_range draw_orderedIters(878,40830
+draw_grad *draw_gradReferenceGradPtr(draw_gradReferenceGradPtr925,42718
+void draw_rowNewSegmentRangePerPix(929,42905
+void draw_rowNewSegmentRangeOnX(951,43905
+void draw_rowNewSegmentRangeOnY(1002,46472
+void draw_invalidIter(1060,49460
+bool draw_horizSegmentInit(1064,49548
+void draw_segInit(1090,51014
+uint32 draw_segFastRenderX(1120,52128
+uint32 draw_segSlowRenderX(1148,53088
+uint32 draw_segFastRenderY(1194,54765
+uint32 draw_segSlowRenderY(1222,55725
+uint32 draw_innerSeg(1268,57395
+bool draw_headFaster(1302,58871
+bool draw_tail(1344,60719
+bool draw_tailFaster(1353,61153
+uint32 draw_unshiftDir(1364,61668
+void draw_gradInitFill(1368,61738
+void draw_gradConstsInit(1463,65193
+void draw_recordFD(1495,66890
+uint32 draw_gradReferenceMaxIter(1516,67370
+draw_range draw_vertsTopAndBottomIdxs(1520,67507
+draw_range draw_scanFillLogStartScan(1538,67985
+draw_range draw_scanFillLogScan(1552,68620
+void draw_scanLogFill(1566,69377
+void draw_smallTriNow(1599,70950
+void draw_triNow(1625,71885
+void draw_smallTriFill(1656,72932
+void draw_triFill(1675,73496
+void draw_smallTriFillCb(1693,74087
+void draw_triFillCb(1704,74385
+bool draw_fillIter(1715,74673
+void draw_coreRender(1720,74884
+void draw_initSmallGrad(1762,76496
+void draw_initGrad(1781,77108
+void draw_coreInitGrad(1795,77517
+draw_vert draw_bezNext(1810,78117
+draw_vert *draw_bezFD(draw_bezFD1827,79139
+draw_vert *draw_bezFD_0(draw_bezFD_01831,79223
+draw_vert draw_bezFXT(1835,79292
+draw_bez draw_bezInterface(1839,79359
+void draw_bezInit(1852,79765
+sint32 draw_curveIfPlot(1890,81116
+sint32 draw_plotBez(1972,83984
+draw_vert draw_solveSimultaneous(1983,84584
+void draw_solveSimultaneousRect(1991,84860
+sint32 draw_tailArr(2000,85254
+void draw_strokeWidthInit(2011,85882
+void draw_gradsDestroy(2026,86681
+void draw_proxInit(2031,86810
+static sint8 *draw_test_proxInit(draw_test_proxInit2062,88158
+void draw_proxDestroy(2076,88842
+void draw_scanBrushLogInit(2087,89128
+uint32 draw_scanBrushLogPt2Iter(2100,89620
+void draw_scanBrushLogDestroy(2134,91316
+void draw_scanFillLogDestroy(2140,91459
+void draw_scanLogDestroy(2151,91752
+float32 draw_vertAng(2155,91841
+float32 draw_vertAngBetween(2176,92321
+void draw_renderCoreInit(2185,92709
+uint32 draw_renderCoreMaxIter(2200,93406
+uint32 draw_renderHeight(2204,93513
+void draw_renderCoreDraw(2208,93807
+uint32 draw_calcMaxIter(2214,94217
+draw_grads draw_gradsInterface(2226,94763
+void draw_gradsInit(2238,95200
+void draw_gradsSetIterRange(2263,96239
+draw_iterRange draw_gradsIterRange(2273,96981
+uint32 draw_gradsMaxIter(2277,97073
+draw_grad *draw_gradsGradPtr(draw_gradsGradPtr2281,97158
+void draw_gradsSetMids(2286,97361
+void draw_gradMarkDirty(2293,97597
+void draw_gradTranslatedsInit(2304,98055
+void draw_gradTranslatedsReset(2318,98744
+void draw_gradTranslatedsDestroy(2327,99070
+void draw_scanFillLogInit(2337,99411
+void draw_scanLogInit(2355,100252
+void draw_gradsArrayInit(2365,100580
+void draw_gradsArrayDestroy(2381,101347
+void draw_thickQuad(2390,101632
+draw_vert draw_determineCtrlPt(2425,102741
+uint32 draw_blotMaxIter(2633,111955
+void draw_landmarkInit(2639,112189
+draw_vert draw_landmarkPt(2645,112394
+static uint8 *draw_test_landmarkPt(draw_test_landmarkPt2669,113216
+void draw_scanBrushLogGradDistRanker(2752,115425
+void draw_blotInit(2804,117441
+void draw_gradDestroy(2900,121058
+void draw_blotDestroy(2906,121172
+void draw_blotHere(2934,122030
+void draw_quadInit(2983,123843
+draw_vert draw_quadStartFDGen(2998,124431
+void draw_coordToIterCalcCoord2IterSize(3013,124833
+void draw_coordToIterInit(3047,126223
+sint32 draw_coordToIterVert(3089,127931
+uint32 draw_coordToIterStartIter(3093,128017
+uint32 draw_coordToIterGetIter(3097,128114
+void draw_coordToIterDestroy(3124,129147
+void draw_vertNullableInit(3132,129337
+draw_gradReference draw_gradReferenceInterface(3136,129471
+void draw_gradReferenceInit(3148,129964
+void draw_gradReferenceDestroy(3177,131061
+draw_iterRange draw_gradReferenceIterRange(3180,131129
+void draw_gradReferenceSetIterRange(3184,131237
+void draw_brushInit(3192,131983
+bool draw_renderable(3197,132242
+bool draw_brushRenderable(3201,132357
+void draw_brushDestroy(3205,132479
+float32 draw_brushHalfWidth(3210,132605
+float32 draw_brushBreadth(3214,132710
+void draw_strokeInit(3218,132799
+void draw_strokeReset(3224,133057
+draw_vert draw_strokeEndFD(3234,133384
+draw_vert draw_strokeStartFD(3250,134013
+void draw_canvasMarkDirtyRadius(3261,134447
+sint32 draw_vertNonReflexAngNormalised(3277,134813
+sint32 draw_vertNonReflexAng(3418,140575
+static sint8 *draw_test_horizVert2Quadrant(draw_test_horizVert2Quadrant3431,141016
+static sint8 *draw_test_vertNonReflexAng(draw_test_vertNonReflexAng3448,141580
+void draw_completeQuadrant(3534,146222
+void draw_strokeCap(3551,146771
+void draw_strokeStartCap(3737,154225
+void draw_strokeEndCap(3743,154557
+void draw_strokeMoveTo(3748,154776
+void draw_strokeQuadTo(3761,155190
+void draw_strokeRender(3787,156090
+bool draw_strokeRenderable(3805,156640
+void draw_quadPtsInit(3809,156750
+void draw_quadPtsSplit(3815,156930
+draw_vert draw_vertRotate(3827,157394
+void draw_rectIntInit(3837,157721
+void draw_rectIntFitRectInt(3846,157903
+void draw_rectIntFitRect(3863,158431
+void draw_rectIntFit(3880,158953
+bool draw_rectIntFilled(3894,159356
+void draw_rectIntReify(3899,159548
+sint32 draw_dirtyTop(3938,161196
+uint32 draw_dirtyBottom(3942,161286
+uint32 draw_dirtyLeft(3946,161379
+uint32 draw_dirtyRight(3950,161470
+sint8 *draw_test(draw_test3954,161562
+
+rendering/draw.h,16128
+#define DRAW_H2,15
+#define DRAW_FUZZ_FACTOR 11,229
+#define DRAW_INNER_SEG_Y_DOM 13,259
+#define DRAW_INNER_SEG_X_DOM 14,290
+#define DRAW_INNER_SEG_NULL 15,321
+#define DRAW_MIN_OPACITY 17,352
+#define DRAW_OPACITY_MASK 18,388
+#define DRAW_OPACITY_INVERSE_MASK 19,425
+#define DRAW_OPACITY_SHIFT 20,473
+#define DRAW_OPACITY_SCALED_SHIFT 21,505
+#define DRAW_OPACITY_MAX_SCALED 22,543
+#define DRAW_DIR_SHIFT 24,617
+#define DRAW_DIR_INC 25,667
+#define DRAW_DIR_U 27,709
+#define DRAW_DIR_UR 28,730
+#define DRAW_DIR_R 29,786
+#define DRAW_DIR_DR 30,842
+#define DRAW_DIR_D 31,898
+#define DRAW_DIR_DL 32,954
+#define DRAW_DIR_L 33,1010
+#define DRAW_DIR_UL 34,1066
+#define DRAW_DIV_LIMIT 36,1123
+#define DRAW_TRI_THRESH 43,1433
+#define DRAW_PROXIMITY_FIXED_POINT 45,1529
+#define DRAW_PROXIMITY_BITS 46,1567
+#define DRAW_PROXIMITY_MASK 47,1598
+#define DRAW_PROXIMITY_SHIFT(48,1655
+#define DRAW_PROXIMITY_EXTRACT(49,1717
+#define DRAW_PROXIMITY_QUADRANT_BITS 51,1828
+#define DRAW_PROXIMITY_ITER_BITS 52,1867
+#define DRAW_PROXIMITY_QUADRANT_MASK 53,1951
+#define DRAW_PROXIMITY_ITER_MASK 54,2054
+#define DRAW_BLOT_NUM_COORD_TO_ITERS 56,2122
+#define DRAW_SCAN_SPAN_ITER_BOUND_START 58,2162
+#define DRAW_SCAN_SPAN_ITER_BOUND_END 59,2207
+  float32 x;62,2268
+  float32 y;63,2281
+} draw_vert;64,2294
+  draw_vert *p_pt;p_pt67,2325
+  draw_vert pt;68,2344
+} draw_vertNullable;69,2360
+  draw_vert end;72,2583
+  draw_vertNullable cached;78,2986
+  uint32 cached_q;79,3014
+} draw_landmark;80,3033
+  draw_landmark *p_cur;p_cur83,3068
+  draw_landmark *p_last;p_last85,3115
+  draw_landmark *p_first;p_first87,3164
+} draw_landmarkSequence;89,3215
+  DO_ASSERT(92,3258
+  float32 default_pos_inc;94,3352
+  draw_vert mid;95,3476
+  draw_vert half_delta;96,3493
+  float32 slope_recip;97,3517
+  float32 c5;98,3661
+  float32 c6;99,3800
+  draw_vert fd_signed;100,3939
+  draw_landmark *p_landmark;p_landmark102,3963
+  bool initialised;104,4055
+  bool on_x;105,4075
+} draw_grad;106,4088
+  sint32 x;109,4119
+  sint32 y;110,4131
+} draw_vertInt;111,4143
+  draw_vertInt lt;114,4177
+  draw_vertInt rb;115,4196
+  DO_ASSERT(117,4216
+} draw_rectInt;118,4243
+  uint32 w;121,4277
+  uint32 h;122,4289
+  draw_rectInt dirty;123,4301
+  uint32 *p_bitmap;p_bitmap125,4342
+  bool stop;128,4370
+} draw_canvas;129,4383
+  draw_vert lt;132,4416
+  draw_vert rb;133,4432
+} draw_rect;134,4448
+  draw_vert pts[pts137,4479
+  draw_vert fd_init_val;139,4502
+  draw_vert fd_delta;140,4527
+  draw_vert fd_t;141,4549
+  draw_vert fd_delta_by_step;142,4567
+  draw_vert fds[fds143,4597
+  float32 step;145,4712
+  float64 step_sum;146,4728
+} draw_quad;147,4748
+  DO_ASSERT(150,4779
+  draw_vert mid;152,4873
+  float32 c6_ax_less_c5_ay;154,5058
+  draw_vert offset;155,5086
+  bool initialised;157,5109
+} draw_gradTranslated;158,5129
+  float32 breadth;161,5170
+  float32 width;162,5189
+  float32 width_squared;163,5288
+  float32 width_recip;164,5313
+  float32 half_width;165,5363
+  float32 half_blur_width;166,5414
+  float32 blurred_prop;167,5459
+  float32 blurred_prop_recip;168,5541
+  float32 half_blur_width_recip;169,5605
+} draw_strokeWidth;170,5675
+  uint32 opacity_scaled;173,5713
+  sint32 p_incs_per_pos[p_incs_per_pos174,5738
+  float32 threshes[threshes177,5878
+  float32 start_threshes[start_threshes178,6130
+  uint32 start_opacity[start_opacity179,6159
+} draw_gradConsts;181,6384
+  uint32 *p_xy_2_nearest_landmark;p_xy_2_nearest_landmark184,6421
+  uint32 *p_xy_2_iter;p_xy_2_iter185,6456
+  uint32 nearest_landmark_size;186,6479
+  uint32 span;187,6511
+  uint32 rel_origin;188,6526
+  uint32 max_dist_squared;189,6547
+} draw_prox;190,6574
+  uint32 col;193,6605
+  uint32 rgb;194,6619
+  uint32 opacity;195,6667
+  float32 opacity_frac;196,6711
+  draw_strokeWidth w;197,6768
+  draw_gradConsts grad_consts;198,6790
+  uint32 line_len;199,6821
+  draw_prox proximity;200,6873
+} draw_scanBrushLog;201,6896
+  draw_vert pts[pts204,6984
+} draw_quadPts;205,7004
+  sint32 start;208,7038
+  sint32 end;209,7054
+} draw_range;210,7068
+  uint32 q;213,7100
+  uint32 iter;214,7112
+} draw_iterRange;219,7194
+  draw_iterRange iter_range;222,7230
+  uint32 q;223,7259
+  uint32 iter;224,7271
+  sint32 start_x;225,7286
+  sint32 end_x;226,7304
+  draw_grad *p_iter_2_grad;p_iter_2_grad227,7320
+  draw_grad *p_grad;p_grad228,7348
+  uint32 row_start_offset;229,7369
+  draw_vert *p_anchor;p_anchor230,7396
+} draw_horizSegment;231,7419
+typedef struct draw_gradsIf draw_gradsIf;233,7441
+typedef uint32 (draw_onGradsIfMaxIter)235,7484
+				       typedef draw_grad *(draw_onGradsIfGradPtr)236,7541
+typedef draw_iterRange (draw_onGradsIfIterRange)237,7623
+						 typedef draw_gradTranslated *(draw_onGradsIfTranslated)238,7690
+				       struct draw_gradsIf 240,7807
+					 draw_onGradsIfMaxIter * p_max_iter_cb;241,7840
+					 draw_onGradsIfGradPtr * p_grad_ptr_cb;242,7885
+					 draw_onGradsIfIterRange * p_iter_range_cb;243,7930
+					 draw_onGradsIfTranslated * p_trans_cb;244,7979
+  draw_gradTranslated *p_iter_2_grad_trans;p_iter_2_grad_trans248,8056
+  uint32 num_iters;249,8195
+} draw_gradTranslateds;251,8314
+  draw_gradsIf grads_if;254,8356
+  draw_grad *p_iter_2_grad;p_iter_2_grad255,8381
+  uint32 max_iter;256,8409
+  draw_iterRange range;257,8428
+  draw_gradTranslateds trans;258,8452
+} draw_grads;259,8508
+  draw_grad *p_iter_2_grad;p_iter_2_grad262,8540
+  uint32 num_iters;263,8568
+} draw_gradsArray;264,8588
+  rtu_globals *p_rtu;p_rtu267,8625
+  draw_canvas canvas;272,8702
+  draw_vert null_vert;273,8724
+  uint32 pp_y_dirs[pp_y_dirs274,8747
+  draw_vert draw_origin;277,8841
+  uint64 draw_pixels;278,8866
+  uint64 draw_iter_updates;279,8888
+} draw_globals;280,8916
+typedef void (draw_onIterRowCb)282,8933
+#define DRAW_ON_ITER_ROW_CB(284,9108
+typedef struct draw_curveIf draw_curveIf;286,9464
+typedef void (draw_onCurveIfInit)288,9507
+typedef draw_vert (draw_onCurveIfFXT)289,9671
+typedef draw_vert *(draw_onCurveIfFD)290,9727
+typedef draw_vert (draw_onCurveIfNext)291,9782
+typedef draw_vert *(draw_onCurveIfFD0)292,9869
+				      struct draw_curveIf 294,9926
+					draw_onCurveIfInit *const p_init_cb;295,9958
+					draw_onCurveIfFXT *const p_fxt_cb;296,10000
+					draw_onCurveIfFD *const p_fd_cb;297,10040
+					draw_onCurveIfFD0 *const p_fd_0_cb;298,10078
+					draw_onCurveIfNext *const p_next_cb;299,10119
+#define DRAW_CURVE_IF_INIT_CB_ARG(303,10176
+#define DRAW_CURVE_IF_FXT_CB_ARG(305,10400
+#define DRAW_CURVE_IF_FD_CB_ARG(307,10537
+#define DRAW_CURVE_IF_NEXT_CB_ARG(309,10676
+#define DRAW_CURVE_IF_FD_0_CB_ARG(311,10877
+  draw_curveIf curve_if;315,11036
+  draw_quad quad;317,11062
+  draw_vert f_x_t;318,11080
+  draw_vert fd_times_t;319,11099
+  draw_vert c_0;320,11123
+  draw_vert c_1;321,11140
+  draw_vert fd_0;322,11157
+  draw_grad *p_iter_2_grad;p_iter_2_grad324,11176
+  uint32 max_iter;325,11204
+  DO_ASSERT(327,11224
+  DO_ASSERT(328,11248
+  const draw_vert *p_points[p_points329,11275
+} draw_bez;330,11307
+#define DRAW_GRADS_IF_MAX_ITER_CB_ARG(332,11320
+#define DRAW_GRADS_IF_GRAD_PTR_CB_ARG(333,11449
+#define DRAW_GRADS_IF_ON_ITER_CB_ARG(335,11607
+#define DRAW_GRADS_IF_ITER_RANGE_CB_ARG(337,11960
+#define DRAW_GRADS_IF_TRANS_CB_ARG(339,12108
+  float32 start;342,12350
+  float32 end;343,12367
+} draw_rangeFlt;344,12382
+  uint32 q;347,12417
+  uint32 iter;348,12440
+} draw_iterKey;349,12484
+  draw_grads *p_grad_agg;p_grad_agg352,12518
+  float32 max_on_y_x_coord;354,12545
+  float32 min_on_y_y_coord;355,12573
+  uint32 num_coords;356,12601
+  uint32 *p_coord_2_iter;p_coord_2_iter357,12655
+  draw_vert origin;358,12681
+  sint32 right;360,12702
+  sint32 down;361,12718
+  float32 abs_max_y_x;362,12733
+  uint32 start_iter;368,12953
+  uint32 end_iter;369,12975
+} draw_coordToIter;370,12994
+  draw_gradsIf grads_if;373,13032
+  draw_coordToIter *p_coord_2_iters;p_coord_2_iters375,13058
+  draw_vert center;376,13095
+  draw_iterRange range;377,13115
+  uint32 last_iter;379,13140
+  draw_vertNullable last_pt;380,13220
+  draw_gradTranslated *p_iter_2_grad_trans;p_iter_2_grad_trans381,13249
+  uint32 start_quadrant;382,13293
+  uint32 max_iter;383,13416
+} draw_gradReference;387,13635
+  draw_grads slope_sign_2_iter_2_grads[slope_sign_2_iter_2_grads390,13675
+  draw_gradsArray grads_arr;391,13718
+  float32 breadth;393,13748
+  float32 blur_width;394,13767
+  draw_vert origin;396,13792
+  draw_coordToIter coord_2_iters[coord_2_iters397,14102
+  draw_gradTranslateds trans;398,14166
+} draw_blot;399,14279
+  draw_scanBrushLog b;402,14310
+  draw_blot blot;403,14333
+} draw_brush;404,14351
+  draw_vert last;407,14383
+  draw_brush brush;409,14402
+  uint32 buf_width;410,14422
+  uint32 buf_height;411,14442
+  draw_vert last_fd;413,14464
+#define DRAW_STROKE_IN_STROKE 414,14485
+#define DRAW_STROKE_MOVED 415,14520
+#define DRAW_STROKE_RENDERED 416,14551
+  uint32 state;417,14585
+} draw_stroke;418,14742
+  float32 pos;421,14775
+  sint32 opacity;422,14837
+  uint32 idx;423,14891
+#define DRAW_GRAD_PT_MAX_START 425,14960
+#define DRAW_GRAD_PT_MIN_END(426,14993
+  DO_ASSERT(427,15031
+} draw_gradPt;428,15115
+  draw_vert pt_diff;431,15148
+  sint32 x_dist;432,15169
+  sint32 y_dist;433,15186
+  uint32 x_steps;434,15203
+  uint32 y_steps;435,15221
+  uint32 x_dom;436,15239
+  const draw_vert *p_0;p_0438,15256
+  const draw_vert *p_1;p_1439,15280
+} draw_seg;440,15304
+  draw_range xs;443,15334
+  draw_range iters;444,15351
+} draw_scanSpan;445,15371
+  DO_ASSERT(448,15406
+  uint32 size;450,15432
+  draw_scanSpan span[span451,15468
+} draw_scanEnd;452,15641
+  float32 inc;455,15675
+  float32 pos;456,15690
+} draw_end;457,15705
+  draw_vertInt p;460,15735
+  uint32 fill_dir;461,15753
+} draw_posState;462,15772
+  sint32 *p_y_2_starts;p_y_2_starts465,15807
+  sint32 *p_y_2_ends;p_y_2_ends466,15831
+} draw_decomposedBounds;467,15853
+  sint32 min_y;470,15896
+  draw_decomposedBounds xs_pairs;474,15991
+  uint32 size;475,16025
+} draw_scanFillLog;476,16064
+  draw_scanBrushLog *p_b;p_b487,16714
+  draw_scanFillLog f;488,16740
+} draw_scanLog;489,16762
+#define DRAW_CAP_BOUNDARY_CMP_CB_ARG(491,16779
+  float32 x;495,16973
+  bool start_cap;496,16986
+} draw_capBoundary;497,17107
+  sint32 not_checking;500,17145
+  draw_capBoundary bnds[bnds501,17263
+} draw_capBoundaries;502,17291
+typedef void (draw_onPtCb)504,17314
+typedef void (draw_onIterCb)505,17453
+typedef bool (draw_onSegCb)506,17613
+  draw_onPtCb *p_on_pt_cb;p_on_pt_cb510,18081
+  draw_onIterCb *p_on_iter_cb;p_on_iter_cb511,18108
+} draw_featherCbs;512,18139
+  draw_vert spine[spine525,18351
+  draw_strokeWidth *p_w;p_w527,18398
+  float32 ang;528,18423
+  uint32 max_iter;529,18468
+  float32 step;530,18487
+  uint32 real_max_y;531,18503
+  uint32 real_min_y;532,18524
+} draw_renderCore;533,18545
+  draw_renderCore core;549,18891
+} draw_render;551,18944
+inline void draw_atOffset(576,19809
+inline uint32 draw_get(580,19942
+inline void draw_clear(584,20063
+inline uint32 draw_canvasWidth(594,20398
+inline uint32 draw_canvasHeight(598,20485
+inline void draw_canvasMarkDirty(603,20641
+inline void draw_canvasMarkDirtyRect(617,21428
+inline uint32 draw_blotHalfWidth2BBoxLen(623,21958
+inline uint32 draw_bboxLen(627,22059
+inline float32 draw_polynomial(631,22192
+inline float32 draw_bezierTerm(637,22403
+inline draw_vert draw_bezierQuad(644,22688
+inline draw_vert draw_norm(653,23193
+inline uint32 draw_mem_inc_idx(658,23312
+inline float32 draw_manhattanDist(663,23433
+inline float32 draw_euclideanDistSquared(667,23566
+inline float32 draw_euclideanDist(672,23754
+inline draw_vert draw_copy(676,23891
+inline draw_vert draw_add(681,24001
+inline draw_vert draw_neg(686,24152
+inline draw_vert draw_abs(691,24266
+inline draw_vert draw_diff(696,24390
+inline draw_vert draw_by(701,24542
+inline draw_vert draw_byOneByOne(706,24689
+inline draw_vert draw_divide(711,24871
+inline float32 draw_mag(718,25116
+inline draw_vert draw_fd2Tan(723,25356
+inline draw_rect draw_boundingBox(730,25578
+inline draw_rect draw_calcTerminalBoxFromTan(735,25756
+inline draw_rect draw_calcTerminalBox(740,25963
+inline draw_vert draw_vertRecip(746,26265
+inline bool draw_vertEq(751,26377
+inline bool draw_vertSim(755,26493
+inline draw_vert draw_divideByUInt(759,26669
+inline draw_vert draw_divideOneByOne(771,27147
+inline draw_vert draw_weightedMean(778,27486
+inline draw_vert draw_mean(786,27798
+inline draw_vert* draw_quadNextFD(791,27947
+inline draw_vert draw_fd2Norm(800,28259
+inline void draw_onOffset(805,28400
+inline void draw_dot(809,28567
+inline void draw_vertDot(816,29024
+inline float32 draw_plotBezInitC_0(821,29182
+inline float32 draw_plotBezInitC_1(825,29273
+inline float32 draw_plotBezInitFDD(829,29406
+inline float32 draw_plotBezInitFD_0(833,29524
+inline float32 draw_plotBezInitFD_1(837,29618
+inline float32 draw_plotBezInitFDTimesT(842,29751
+inline float32 draw_fd(846,29844
+inline float32 draw_plotBezUpdateFXT(850,29929
+inline float32 draw_plotBezUpdateFDTimesT(855,30134
+inline uint32 draw_largerPowerOf2(859,30239
+inline uint32 draw_scanLogPos2ConstIdx(867,30387
+inline uint32 draw_gradPos2Idx(873,30654
+inline uint32 draw_gradIdx2ConstIdx(877,30809
+inline float32 draw_gradRowSideM(881,30917
+inline float32 draw_gradNewSideM(888,31285
+inline float32 draw_gradRow2NewSideM(892,31491
+inline sint32 draw_gradSideIncSgn4FD(896,31637
+inline void draw_scanSpanUpdateIter(901,31799
+inline float32 draw_mCs2X(915,32255
+inline float32 draw_ptSlope2C(920,32418
+inline float32 draw_mXC2Y(924,32514
+inline sint32 draw_capBoundaryCmp(934,32717
+inline float32 draw_savedWidth2RenderedWidth(942,32948
+inline float32 draw_breadth2HalfWidth(946,33118
+inline uint32 draw_blotBreadth2BBoxLen(950,33275
+inline uint32 draw_blotBBoxLen(958,33553
+inline float32 draw_blotHalfWidth(962,33686
+inline draw_vert draw_blotBBoxDims(966,33820
+inline draw_vert draw_blotBBoxLen2BBoxDims(972,34029
+inline sint32 draw_horizVert2Quadrant(977,34162
+inline uint32 draw_quadrant2CoordToIterIdx(1003,35057
+inline draw_grads *draw_blotQuadrant2Grads(draw_blotQuadrant2Grads1008,35195
+inline float32 draw_blotBreadth(1015,35550
+inline draw_coordToIter *draw_blotCoordToIters(draw_blotCoordToIters1019,35638
+inline draw_coordToIter *draw_blotQuadrant2CoordToIter(draw_blotQuadrant2CoordToIter1023,35741
+inline float32 draw_gradLongConst(1031,36170
+inline void draw_gradTranslatedInit(1043,36631
+inline bool draw_gradTranslatedFill(1053,37184
+inline sint32 draw_quadrant2Horiz(1076,38236
+inline sint32 draw_quadrant2Vert(1082,38422
+inline void draw_dotScanRowLeftBnd(1097,38859
+inline void draw_dotScanRowRightBnd(1108,39402
+inline uint32 draw_coordToIterVertY2Idx(1129,40429
+inline uint32 draw_coordToIterVert2Idx(1133,40588
+inline draw_grads *draw_coordToIterGrads(draw_coordToIterGrads1156,41206
+inline uint32 draw_coordToIterMaxIter(1160,41305
+inline draw_grad *draw_coordToIterGradPtr(draw_coordToIterGradPtr1164,41411
+inline uint32 draw_gradReferenceQuadrant(1168,41526
+inline uint32 draw_gradReferenceIter(1173,41732
+inline void draw_vertNullableSetPt(1178,42031
+inline void draw_gradReferenceSetLastPt(1187,42221
+inline draw_gradTranslated *draw_gradReferenceTrans(draw_gradReferenceTrans1191,42373
+inline uint32 draw_blotNumCoord2Iters(1199,42775
+inline draw_gradTranslated *draw_gradsTrans(draw_gradsTrans1203,42882
+inline uint32 draw_proxOffset(1209,43234
+inline uint32 draw_scanBrushLogOffset(1216,43584
+inline uint32 draw_proxOffsetIdx(1220,43751
+inline uint32 draw_proxProximity(1225,43971
+inline uint32 draw_insertProximityVal(1230,44232
+inline bool draw_proxLandmarkDistRanker(1234,44449
+inline bool draw_proxIsClosest(1258,45922
+inline bool draw_scanBrushLogIsClosest(1267,46449
+inline bool draw_scanBrushLogLandmarkDistRanker(1271,46745
+inline uint32 draw_proxRowOffset(1279,47433
+inline uint32 draw_scanBrushLogRowOffset(1284,47684
+inline sint32 draw_landmarkXDelta(1289,47956
+inline float32 draw_scanBrushLogRelativise(1294,48196
+inline uint32 draw_proxHalfSpan(1299,48399
+
+rtu.h,1517
+#define RTU_H2,14
+#define TWO_PI 9,108
+#define MAX(11,133
+#define MIN(12,168
+inline uint32 rtu_signBit(14,204
+inline uint32 rtu_abs(18,282
+#define ABSF(25,492
+#define SGN(26,541
+#define CMP(27,580
+#define DIM(28,625
+#define IMPLIES(29,665
+#define BSGN(32,763
+#define BCMP(33,804
+#define RTU_APPNAME 35,852
+#define LOG_INFO_LEVEL 37,899
+#define LOG_ASSERT_LEVEL 38,924
+#define LOG_ERROR_LEVEL 39,951
+#define LOG_NO_REPORTING_LEVEL 40,977
+#define LOG_LEVEL 42,1011
+  uint32 divisor_limit;45,1063
+  float32 *p_div_table;p_div_table46,1087
+} rtu_globals;47,1111
+#define DO_ERROR(68,1847
+#define LOG_ERROR(69,1875
+#define DO_ASSERT(73,1986
+#define LOG_ASSERT(74,2015
+#define DO_INFO(78,2181
+#define LOG_INFO(79,2210
+#define DO_INFO(83,2286
+#define LOG_INFO(84,2308
+#define DO_INFO(90,2346
+#define LOG_INFO(91,2368
+#define DO_ASSERT(93,2391
+#define LOG_ASSERT(94,2415
+#define DO_INFO(100,2455
+#define LOG_INFO(101,2477
+#define DO_ASSERT(103,2500
+#define LOG_ASSERT(104,2524
+#define LOG_ERROR(106,2549
+#define DO_ERROR(107,2572
+inline void rtu_memSet(111,2603
+inline uint32 rtu_min(126,3029
+inline uint32 rtu_max(133,3300
+inline uint32 rtu_bound(140,3571
+inline void rtu_memZero(145,3738
+inline bool rtu_similarToZero(150,3891
+inline bool rtu_similar(154,3978
+inline uint32 rtu_factorial(158,4076
+inline float32 rtu_fastDiv(172,4355
+inline float32 rtu_div(177,4641
+inline uint32 rtu_nCr(185,4911
+inline float32 rtu_fractional(192,5244
+inline float32 rtu_altAng(198,5397
+
+rtu.c,654
+rtu_globals* rtu_globalsInit(35,1177
+void rtu_globalsDestroy(46,1471
+bool rtu_onFail(54,1640
+rtu_globals rtu_globalsInitialFields(58,1682
+void rtu_initFastDiv(70,1858
+void rtu_finaliseDiv(88,2426
+uint32 G_RTU_LITTLE_ENDIAN=97,2650
+int rtu_littleEndian(98,2681
+void rtu_solveQuadratic(107,2879
+bool rtu_isAngAcuteBetween(117,3207
+bool rtu_isMAcuteBetween(131,3655
+#define G_RTU_LINE_LEN 161,4562
+sint8 G_RTU_LINE[G_RTU_LINE162,4589
+void rtu_log(163,4623
+#define G_RTU_LINE_LEN 182,5065
+sint8 G_RTU_LINE[G_RTU_LINE183,5092
+void rtu_log(185,5127
+void rtu_log(196,5462
+void *rtu_memAlloc(rtu_memAlloc210,5737
+void rtu_memFree(216,5883
+
+minunit.h,115
+#define G_MU_LINE_LEN 7,79
+sint8 G_MU_LINE[G_MU_LINE9,106
+#define mu_assert(11,139
+#define mu_run_test(18,417
+
+types.h,1423
+#define types_h2,16
+typedef unsigned char uint8;4,33
+typedef char sint8;5,62
+typedef short int int16;6,82
+typedef unsigned short int uint16;7,107
+typedef unsigned int uint32;8,142
+typedef unsigned long long uint64;9,171
+typedef int sint32;10,206
+typedef float float32;11,226
+typedef double float64;12,249
+typedef enum {ok,ok14,274
+typedef enum {ok, noMemory,14,274
+typedef enum {ok, noMemory,invalidPrimitive,14,274
+typedef enum {ok, noMemory,invalidPrimitive,emptyObject,14,274
+typedef enum {ok, noMemory,invalidPrimitive,emptyObject,nofile,14,274
+typedef enum {ok, noMemory,invalidPrimitive,emptyObject,nofile, unsupported,14,274
+typedef enum {ok, noMemory,invalidPrimitive,emptyObject,nofile, unsupported, glErr,14,274
+typedef enum {ok, noMemory,invalidPrimitive,emptyObject,nofile, unsupported, glErr, failedAssert}failedAssert14,274
+typedef enum {ok, noMemory,invalidPrimitive,emptyObject,nofile, unsupported, glErr, failedAssert} oError;14,274
+#define CEIL32(16,381
+#define ROUND32(17,408
+#define LOG32(18,437
+#define POW32(19,462
+#define SQRT32(20,491
+#define FMOD32(21,518
+#define COS32(22,549
+#define SIN32(23,574
+#define TAN32(24,599
+#define ATAN32(25,624
+#define CEIL64(27,652
+#define ROUND64(28,678
+#define LOG64(29,706
+#define POW64(30,730
+#define SQRT64(31,758
+#define FMOD64(32,784
+#define COS64(33,814
+#define SIN64(34,838
+#define TAN64(35,862
+#define ATAN64(36,886
+
+ccan/typesafe_cb/typesafe_cb.h,241
+#define CCAN_TYPESAFE_CB_H3,84
+#define typesafe_cb_cast(31,1225
+#define typesafe_cb_cast(37,1428
+#define typesafe_cb_cast3(60,2222
+#define typesafe_cb(85,3208
+#define typesafe_cb_preargs(107,3986
+#define typesafe_cb_postargs(129,4796
