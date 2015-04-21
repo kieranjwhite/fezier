@@ -62,6 +62,10 @@ rtu_initFastDiv(DRAW_DIV_LIMIT, G_p_globals->p_rtu);
 uint32 w=640;
 uint32 h=480;
 uint32 *p_pixels=rtu_memAlloc(w*h);
+if(!p_pixels) {
+   printf("malloc failure");
+   exit(-1);
+}
 draw_init(w, h, devicePixelRatio, p_pixels, G_p_globals);
 </pre>
 
