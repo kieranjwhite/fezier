@@ -20,5 +20,5 @@
 #include <SDL.h>
 
 #define TEST_H
-void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globals, uint32 buf_width, uint32 buf_height);
+void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globals);
 #endif

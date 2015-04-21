@@ -20,7 +20,9 @@
 #include <stdbool.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/time.h>
 
+#include "minunit.h"
 #include "rtu.h"
 #include "types.h"
 
@@ -37,6 +39,7 @@ extern inline uint32 rtu_factorial(uint32 n);
 extern float32 rtu_div(float32 dividend, uint32 divisor, const rtu_globals *p_globals);
 extern inline uint32 rtu_nCr(uint32 n, uint32 r, const rtu_globals *p_globals);
 extern inline float32 rtu_fastDiv(float32 dividend, uint32 divisor, const rtu_globals *p_globals);
+extern inline float32 rtu_fastATan(const float32 slope, const rtu_globals *p_globals);
 extern inline void rtu_memSet(void *p, const uint32 v, const uint32 num_words32);
 
 /*
@@ -73,11 +76,13 @@ bool rtu_onFail(void) {
 }
 
 rtu_globals rtu_globalsInitialFields(void) {
-	rtu_globals g={
-			.divisor_limit=0,
-			.p_div_table=NULL
-	};
-	return g;
+  rtu_globals g={
+    .divisor_limit=0,
+    .p_div_table=NULL,
+    .p_atan_table=NULL,
+    .atan_divisor=0
+  };
+  return g;
 }
 
 /*
@@ -86,7 +91,7 @@ rtu_globals *G_p_rtu=&G_rtu;
 */
 void rtu_initFastDiv(uint32 end_plus_one, rtu_globals *p_globals) {
   if(p_globals->p_div_table) {
-    LOG_ASSERT(false, "G_div_table already initialised");
+    LOG_ASSERT(false, "p_div_table already initialised");
   } else {
 	LOG_INFO("initialising G_div_table");
     uint32 size=end_plus_one;
@@ -102,12 +107,49 @@ void rtu_initFastDiv(uint32 end_plus_one, rtu_globals *p_globals) {
   }
 }
 
-void rtu_finaliseDiv(rtu_globals *p_globals) {
+void rtu_initFastATan(const uint32 divisor, rtu_globals *p_globals) {
+  /* The table will have divisor+1 elements
+   */
+  if(divisor==0) {
+    LOG_ASSERT(false, "divisor cannot be 0");
+    return;
+  }
+  if(p_globals->p_atan_table) {
+    LOG_ASSERT(false, "p_atan_table already initialised");
+  } else {
+    uint32 bytes=(divisor+1)*sizeof(float32);
+    p_globals->p_atan_table=rtu_memAlloc(bytes);
+    if(p_globals->p_atan_table) {
+      float32 slope_inc=((float32)1)/divisor;
+      float32 slope=0;
+      uint32 i=0;
+      for(; i<divisor; i++) {
+	p_globals->p_atan_table[i]=ATAN32(slope);
+	slope+=slope_inc;
+      }
+      p_globals->p_atan_table[i]=ATAN32(1.0);
+      p_globals->atan_divisor=divisor;
+    } else {
+      LOG_ASSERT(false, "failed to malloc %u", bytes);
+    }
+  }
+}
+
+void rtu_destroyDiv(rtu_globals *p_globals) {
   if(p_globals->p_div_table) {
     rtu_memFree(p_globals->p_div_table);
     p_globals->p_div_table=NULL;
   } else {
-    LOG_ASSERT(false, "G_div_table not initialised");
+    LOG_ASSERT(false, "p_div_table not initialised");
+  }
+}
+
+void rtu_destroyATan(rtu_globals *p_globals) {
+  if(p_globals->p_atan_table) {
+    rtu_memFree(p_globals->p_atan_table);
+    p_globals->p_atan_table=NULL;
+  } else {
+    LOG_ASSERT(false, "p_atan_table not initialised");
   }
 }
 
@@ -233,4 +275,92 @@ void *rtu_memAlloc(uint32 bytes) {
 void rtu_memFree(void *p_mem) {
   //LOG_INFO("freeing %p", p_mem);
   free(p_mem);
+}
+
+static sint8 *rtu_test_fastATan(void) {
+  rtu_globals *p_globals=rtu_globalsInit();
+  uint32 divisors=2;
+  rtu_initFastATan(divisors, p_globals);
+  float32 fuzz=M_PI/(divisors*4);
+  if(!p_globals) {
+    LOG_ASSERT(false, "failed to malloc");
+    return 0;
+  }
+
+  float32 angs[]={0, 0.25, 0.5, 0.75, 1.00, 1.5, 2, 4, 9999};
+  float32 answers[]={0, 0.24498, 0.46365, 0.64350, 0.78540, 0.98279, 1.1071, 1.3258, 1.5707};
+  uint32 num_tests=DIM(angs);
+  LOG_ASSERT(DIM(angs)==DIM(answers), "incorrect number of answers");
+  
+  mu_assert("incorrect atan for 0", rtu_similar(rtu_fastATan(angs[0], p_globals), answers[0], fuzz));
+  mu_assert("incorrect atan for 0.25", rtu_similar(rtu_fastATan(angs[1], p_globals), answers[1], fuzz));
+  mu_assert("incorrect atan for 0.5", rtu_similar(rtu_fastATan(angs[2], p_globals), answers[2], fuzz));
+  mu_assert("incorrect atan for 0.75", rtu_similar(rtu_fastATan(angs[3], p_globals), answers[3], fuzz));
+  mu_assert("incorrect atan for 1.00", rtu_similar(rtu_fastATan(angs[4], p_globals), answers[4], fuzz));
+  mu_assert("incorrect atan for 1.5", rtu_similar(rtu_fastATan(angs[5], p_globals), answers[5], fuzz));
+  mu_assert("incorrect atan for 2", rtu_similar(rtu_fastATan(angs[6], p_globals), answers[6], fuzz));
+  mu_assert("incorrect atan for 4", rtu_similar(rtu_fastATan(angs[7], p_globals), answers[7], fuzz));
+  mu_assert("incorrect atan for 9999", rtu_similar(rtu_fastATan(angs[8], p_globals), answers[8], fuzz));
+
+  mu_assert("incorrect atan for -0", rtu_similar(rtu_fastATan(-angs[0], p_globals), -answers[0], fuzz));
+  mu_assert("incorrect atan for -0.25", rtu_similar(rtu_fastATan(-angs[1], p_globals), -answers[1], fuzz));
+  mu_assert("incorrect atan for -0.5", rtu_similar(rtu_fastATan(-angs[2], p_globals), -answers[2], fuzz));
+  mu_assert("incorrect atan for -0.75", rtu_similar(rtu_fastATan(-angs[3], p_globals), -answers[3], fuzz));
+  mu_assert("incorrect atan for -1.00", rtu_similar(rtu_fastATan(-angs[4], p_globals), -answers[4], fuzz));
+  mu_assert("incorrect atan for -1.5", rtu_similar(rtu_fastATan(-angs[5], p_globals), -answers[5], fuzz));
+  mu_assert("incorrect atan for -2", rtu_similar(rtu_fastATan(-angs[6], p_globals), -answers[6], fuzz));
+  mu_assert("incorrect atan for -4", rtu_similar(rtu_fastATan(-angs[7], p_globals), -answers[7], fuzz));
+  mu_assert("incorrect atan for -9999", rtu_similar(rtu_fastATan(-angs[8], p_globals), -answers[8], fuzz));
+
+  //speed test, disabled because it takes time to run, enable if required
+#if 0
+  struct timeval tval_before, tval_after, tval_result_fast, tval_result_slow;
+  float64 answer_sum_slow=0, answer_sum_fast=0;
+
+  uint32 loops=0;
+  uint32 num_per_loop=10000;
+  gettimeofday(&tval_before, NULL);
+  do {
+    for(uint32 idx=0; idx<num_per_loop; idx++) {
+      for(uint32 test=0; test<num_tests; test++) {
+	answer_sum_slow+=ATAN32(angs[test]);
+      }
+      for(uint32 test=0; test<num_tests; test++) {
+	answer_sum_slow+=ATAN32(-angs[test]);
+      }
+    }
+
+    gettimeofday(&tval_after, NULL);
+    timersub(&tval_after, &tval_before, &tval_result_slow);
+    loops++;
+  } while(tval_result_slow.tv_sec<10);
+
+  LOG_INFO("slow answer %f", answer_sum_slow);
+  gettimeofday(&tval_before, NULL);
+  for(uint32 idx=0; idx<num_per_loop*loops; idx++) {
+    for(uint32 test=0; test<num_tests; test++) {
+      answer_sum_fast+=rtu_fastATan(angs[test], p_globals);
+    }
+    for(uint32 test=0; test<num_tests; test++) {
+      answer_sum_fast+=rtu_fastATan(-angs[test], p_globals);
+    }
+  }
+
+  gettimeofday(&tval_after, NULL);
+  timersub(&tval_after, &tval_before, &tval_result_fast);
+  LOG_INFO("fast answer %f", answer_sum_fast);
+
+  LOG_ASSERT(tval_result_slow.tv_sec>=1, "speed test it too short to be meaningful");
+  LOG_INFO("loops: %u slow time: %ld.%06ld fast time: %ld.%06ld", loops*num_per_loop*num_tests*2, (long int)tval_result_slow.tv_sec, (long int)tval_result_slow.tv_usec, (long int)tval_result_fast.tv_sec, (long int)tval_result_fast.tv_usec);
+  mu_assert("fast atans took longer to calculate", (tval_result_fast.tv_sec<tval_result_slow.tv_sec) || (tval_result_fast.tv_sec==tval_result_slow.tv_sec && tval_result_fast.tv_usec<tval_result_slow.tv_usec));
+#endif
+  
+  rtu_destroyATan(p_globals);
+  rtu_globalsDestroy(p_globals);
+  return 0;
+}
+
+sint8 *rtu_test(void) {
+  mu_run_test(rtu_test_fastATan);
+  return 0;
 }

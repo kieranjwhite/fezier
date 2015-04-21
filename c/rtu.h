@@ -23,7 +23,25 @@
 #include <string.h>
 #include "types.h"
 
+#ifdef EMSCRIPTEN
+#define M_E 2.71828182845904523536
+#define M_LOG2E 1.44269504088896340736
+#define M_LOG10E 0.434294481903251827651
+#define M_LN2 0.693147180559945309417
+#define M_LN10 2.30258509299404568402
+#define M_PI 3.14159265358979323846
+#define M_PI_2 1.57079632679489661923
+#define M_PI_4 0.785398163397448309616
+#define M_1_PI 0.318309886183790671538
+#define M_2_PI 0.636619772367581343076
+#define M_1_SQRTPI 0.564189583547756286948
+#define M_2_SQRTPI 1.12837916709551257390
+#define M_SQRT2 1.41421356237309504880
+#define M_SQRT_2 0.707106781186547524401
+#endif
+
 #define TWO_PI (2*M_PI)
+#define PI_OVER_EIGHT (M_PI_4*0.5)
 
 #define MAX(X,Y) ((X)>(Y)?(X):(Y))
 #define MIN(X,Y) ((X)>(Y)?(Y):(X))
@@ -61,6 +79,8 @@ inline uint32 rtu_abs(sint32 v) {
 typedef struct {
   uint32 divisor_limit;
   float32 *p_div_table;
+  float32 *p_atan_table;
+  uint32 atan_divisor;
 } rtu_globals;
 
 rtu_globals rtu_globalsInitialFields(void);
@@ -76,8 +96,10 @@ bool rtu_isAngAcuteBetween(float32 a1, float32 a2, float32 aInner);
 bool rtu_isMAcuteBetween(float32 m1, float32 m2, float32 mInner);
 
 bool rtu_onFail(void);
+void rtu_initFastATan(const uint32 divisor, rtu_globals *p_globals);
+void rtu_destroyATan(rtu_globals *p_globals);
 void rtu_initFastDiv(uint32 end_plus_one, rtu_globals *p_globals);
-void rtu_finaliseDiv(rtu_globals *p_globals);
+void rtu_destroyDiv(rtu_globals *p_globals);
 
 
 #if LOG_LEVEL <= LOG_ERROR_LEVEL
@@ -92,7 +114,7 @@ void rtu_finaliseDiv(rtu_globals *p_globals);
 
 #if LOG_LEVEL <= LOG_INFO_LEVEL
 
-#define DO_INFO(EXPR) (EXPR)
+#define DO_INFO(EXPR) EXPR
 #define LOG_INFO(...) rtu_log("", __FILE__, __LINE__, __VA_ARGS__);
 
 #else
@@ -191,6 +213,28 @@ inline float32 rtu_fastDiv(float32 dividend, uint32 divisor, const rtu_globals *
   return dividend*p_globals->p_div_table[divisor];
 }
 
+inline float32 rtu_fastATan(const float32 slope, const rtu_globals *p_globals) {
+  /* Assumes divisor is p_globals->atan_divisor, slope_dividen>=0.
+   * Returns values between -pi and pi inclusive
+   */
+
+  float32 multiplier=-((((sint32)(slope<0))<<1)-1); //multiplier=slope<0?-1:1
+  float32 pos_slope=slope*multiplier;
+  float32 pos_tan;
+
+  if(pos_slope>1) {
+    uint32 atan_idx=ROUND32(p_globals->atan_divisor/pos_slope);
+    LOG_ASSERT(atan_idx<=p_globals->atan_divisor, "out of range idx for slope %f, divisor %f", pos_slope, p_globals->atan_divisor);
+    pos_tan=M_PI_2-p_globals->p_atan_table[atan_idx];
+  } else {
+    uint32 atan_idx=ROUND32(pos_slope*p_globals->atan_divisor);    
+    LOG_ASSERT(atan_idx<=p_globals->atan_divisor, "out of range idx for slope (of <= 1) %f, divisor %f", pos_slope, p_globals->atan_divisor);
+    pos_tan=p_globals->p_atan_table[atan_idx];
+  }
+  
+  return pos_tan*multiplier;
+}
+
 inline float32 rtu_div(float32 dividend, uint32 divisor, const rtu_globals *p_globals) {
 	if(divisor<p_globals->divisor_limit) {
 	  return rtu_fastDiv(dividend, divisor, p_globals);
@@ -224,5 +268,6 @@ inline float32 rtu_altAng(float32 ang) {
 
 void *rtu_memAlloc(uint32 bytes);
 void rtu_memFree(void *p_mem);
+sint8 *rtu_test(void);
 
 #endif

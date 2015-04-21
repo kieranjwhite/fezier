@@ -51,6 +51,7 @@
 #define DRAW_DIR_UL ((uint32)(DRAW_DIR_L+DRAW_DIR_INC))
 
 #define DRAW_DIV_LIMIT 0x1000
+#define DRAW_ATAN_DIVISORS 8
 
 /* DRAW_TRI_THRESH is max brush width that we can store proximity values for in 
  * draw_prox.p_xy_2_nearest_landmark. Each element in that array stores 2 
@@ -69,11 +70,13 @@
 #define DRAW_PROXIMITY_ITER_BITS (DRAW_PROXIMITY_BITS-DRAW_PROXIMITY_QUADRANT_BITS)
 #define DRAW_PROXIMITY_QUADRANT_MASK (((1<<DRAW_PROXIMITY_QUADRANT_BITS)-1)<<DRAW_PROXIMITY_ITER_BITS)
 #define DRAW_PROXIMITY_ITER_MASK ((1<<DRAW_PROXIMITY_ITER_BITS)-1)
-
+#define DRAW_PROXIMITY_ORIGIN_OFFSET 3
 #define DRAW_BLOT_NUM_COORD_TO_ITERS 2
 
 #define DRAW_SCAN_SPAN_ITER_BOUND_START 0x01
 #define DRAW_SCAN_SPAN_ITER_BOUND_END 0x10
+
+#define DRAW_SMALLEST_VISIBLE_OPACITY_CHANGE_PER_STD_PIXEL 6
 
 typedef struct {
   float32 x;
@@ -110,7 +113,7 @@ typedef struct {
   float32 c5; //(bx-ax) in link's top answer - see https://stackoverflow.com/questions/3461453/determine-which-side-of-a-line-a-point-lies
   float32 c6; //(by-ay) in link's top answer - see https://stackoverflow.com/questions/3461453/determine-which-side-of-a-line-a-point-lies
   draw_vert fd_signed;
-
+  
   draw_landmark *p_landmark; //Will always be NULL unless stroke width < DRAW_TRI_THRESH
   
   bool initialised;
@@ -130,13 +133,23 @@ typedef struct {
 } draw_rectInt;
 
 typedef struct {
-  uint32 w;
-  uint32 h;
-  draw_rectInt dirty;
-#ifndef EMSCRIPTEN
-  uint32 *p_bitmap;
-#endif
+#define DRAW_CANVAS_NUM_MAG_FACTORS 5
+  uint32 std_mag_factors[DRAW_CANVAS_NUM_MAG_FACTORS];
+  float32 std_scaling_factors[DRAW_CANVAS_NUM_MAG_FACTORS]; //each element in this should be the reciprocal of its corresponding element in G_draw_std_mag_factors
 
+
+  uint32 renderedW; //this should remain constant for a given device (we also change it when user switches to a monitor with a different resolution, but we do so by reinitialising everything - so that doesn't really count)
+  uint32 renderedH; //this should remain constant for a given device (same proviso as for renderedW though)
+  uint32 w; //this will change depending on the blur_width of current brush
+  uint32 h; //this will change depending on the blur_width of current brush
+  float32 devicePixelRatio; //pixel density of a screen, e.g. 1 for most desktop monitors, 2 for 'retina' type displays. A negative value means that scaling optimisation is disabled for this canvas and dependent brushes.
+  draw_rectInt dirty;
+  draw_rectInt extantDirty;
+  uint32 *p_bitmap;
+
+  uint32 last_w; //the w value associated with the previous brush. Needed for draw_cavasWipe
+  uint32 last_h; //the h value associated with the previous brush. Needed for draw_cavasWipe
+  
   bool stop;
 } draw_canvas;
 
@@ -175,7 +188,8 @@ typedef struct {
   float32 width_squared;
   float32 width_recip; //1/draw_strokeWidth.width
   float32 half_width; //draw_strokeWidth.width*0.5
-  float32 blur_width;
+  float32 blur_width; //number of pixels between brush's opacity and complete transparancy. We optimise by scaling on hi-dpi screens so this value can be less than rendered_blur_width when scaling is in effet
+  float32 rendered_blur_width; //number of pixels on screen between brush's opacity and complete transparancy
   float32 half_blur_width; //blur width * 0.5
   float32 blurred_prop; //draw_strokeWidth.half_blur_width/draw_strokeWidth.width
   float32 blurred_prop_recip; //1/draw_strokeWidth.blurred_prop
@@ -197,19 +211,21 @@ typedef struct {
   uint32 *p_xy_2_nearest_landmark;
   uint32 *p_xy_2_iter;
   uint32 nearest_landmark_size;
+  //draw_vert cen;
   uint32 span;
   uint32 rel_origin;
   uint32 max_dist_squared;
 } draw_prox;
 
 typedef struct {
+  float32 scaling_factor; // 1>=scaling_factor>0, smaller on high dpi screens and larger, blurrier brushes. canvas width and height and brush blur_width and breadth are multiplied by this amount for scaling optimisation
+  uint32 mag_factor; //reciprocal of scaling_factor
   uint32 col;
   uint32 rgb; //col & DRAW_OPACITY_INVERSE_MASK
   uint32 opacity; //col & DRAW_OPACITY_MASK
   float32 opacity_frac; // 1/(col >> DRAW_OPACITY_SHIFT)
   draw_strokeWidth w;
   draw_gradConsts grad_consts;
-  uint32 line_len; //num of elements in p_line_pts.
   draw_prox proximity;
 } draw_scanBrushLog; //fields here don't change if the brush doesn't
 
@@ -478,6 +494,10 @@ typedef struct {
 
   draw_decomposedBounds xs_pairs;
   uint32 size; //len of xs_pair fields
+
+  bool highly_acute; //If a curve if very acute then there is the possibility that the angle between two successive draw_grads is sufficiently large at to lead to rendering artifacts. We special case this scenario in draw_coreRender(), checking this flag first.
+  float32 last_ang;
+  
 } draw_scanFillLog; //fields here are required by our most recent draw_grad quadrilateral filling algorithm. The fields' values change between renderings.
 
 typedef struct {
@@ -523,18 +543,9 @@ typedef struct {
 } draw_render;
 
 
-#ifdef EMSCRIPTEN
-
-extern void draw_init(uint32 w, uint32 h);
-extern void draw_finalise(draw_globals *p_globals);
-extern void draw_atOffset(uint32 pOffset, uint32 col, const draw_globals *p_globals);
-extern uint32 draw_get(uint32 pOffset, const draw_globals *p_globals);
-
-#else
-
-void draw_init(uint32 w, uint32 h, draw_globals *p_globals);
+void draw_init(const uint32 w, const uint32 h, const float32 devicePixelRatio, uint32 *p_pixels, draw_globals *p_globals);
+void draw_canvasResetDirty(draw_canvas *p_canvas);
 bool draw_canvasSetup(draw_canvas *p_canvas, uint32 w, uint32 h, uint32* p_pixels);
-void draw_finalise(draw_globals *p_globals);
 bool draw_horizSegmentInit(draw_horizSegment *p_seg, const draw_scanBrushLog *p_b, const sint32 first_x, const sint32 last_x, const uint32 y, draw_globals *p_globals, draw_gradsIf *p_grads_if);
 
 inline void draw_atOffset(uint32 offset, uint32 col, const draw_globals *p_globals) {
@@ -545,17 +556,23 @@ inline uint32 draw_get(uint32 offset, const draw_globals *p_globals) {
   return *(p_globals->canvas.p_bitmap+offset);
 }
 
-inline void draw_clear(uint32 offset, uint32 len, const draw_globals *p_globals) {
-  rtu_memZero(p_globals->canvas.p_bitmap+offset, len*sizeof(uint32));
+inline void draw_canvasClear(draw_canvas *p_canvas, uint32 offset, uint32 len) {
+  rtu_memZero(p_canvas->p_bitmap+offset, len*sizeof(uint32));
 }
-
-#endif
 
 uint32 draw_unshiftDir(uint32 dir);
 void draw_gradAddBound(draw_grad *p_grad, const bool bound_idx, const draw_vert *p_0);
 
+inline uint32 draw_canvasRenderedWidth(const draw_canvas *p_canvas) {
+  return p_canvas->renderedW;
+}
+
 inline uint32 draw_canvasWidth(const draw_canvas *p_canvas) {
   return p_canvas->w;
+}
+
+inline uint32 draw_canvasRenderedHeight(const draw_canvas *p_canvas) {
+  return p_canvas->renderedH;
 }
 
 inline uint32 draw_canvasHeight(const draw_canvas *p_canvas) {
@@ -565,14 +582,24 @@ inline uint32 draw_canvasHeight(const draw_canvas *p_canvas) {
 void draw_rectIntFit(draw_rectInt *p_orig, const draw_vert *p_new);
 inline void draw_canvasMarkDirty(draw_canvas *p_canvas, const draw_vert *p_vert) {
   //LOG_INFO("marking dirty vert. orig: %i, %i - %i, %i new: %f, %f", p_canvas->dirty.lt.x, p_canvas->dirty.lt.y, p_canvas->dirty.rb.x, p_canvas->dirty.rb.y, p_vert->x, p_vert->y);
-  draw_rectIntFit(&p_canvas->dirty, p_vert);
+  draw_rectIntFit(&p_canvas->extantDirty, p_vert);
   //LOG_INFO("marking dirty vert (0x%p). after: %i, %i - %i, %i", &p_canvas->dirty, p_canvas->dirty.lt.x, p_canvas->dirty.lt.y, p_canvas->dirty.rb.x, p_canvas->dirty.rb.y);
+}
+
+void draw_rectIntFitRectInt(draw_rectInt *p_bnds, const draw_rectInt *p_new);
+void draw_rectIntShrink(draw_rectInt *p_orig, const draw_vertInt *p_boundSize);
+inline void draw_canvasMergeDirt(draw_canvas *p_canvas) {
+  //LOG_INFO("merge dirty rect. orig: %i, %i - %i, %i", p_canvas->dirty.lt.x, p_canvas->dirty.lt.y, p_canvas->dirty.rb.x, p_canvas->dirty.rb.y);
+  draw_vertInt bounds={ .x=p_canvas->w-1, .y=p_canvas->h-1 };
+  draw_rectIntShrink(&p_canvas->extantDirty, &bounds);
+  draw_rectIntFitRectInt(&p_canvas->dirty, &p_canvas->extantDirty);
+  //LOG_INFO("merge dirty rect (0x%p). after: %i, %i - %i, %i", &p_canvas->dirty, p_canvas->dirty.lt.x, p_canvas->dirty.lt.y, p_canvas->dirty.rb.x, p_canvas->dirty.rb.y);
 }
 
 void draw_rectIntFitRect(draw_rectInt *p_bnds, const draw_rect *p_new);
 inline void draw_canvasMarkDirtyRect(draw_canvas *p_canvas, const draw_rect *p_new) {
   //LOG_INFO("marking dirty rect. orig: %i, %i - %i, %i new: %f, %f - %f, %f", p_canvas->dirty.lt.x, p_canvas->dirty.lt.y, p_canvas->dirty.rb.x, p_canvas->dirty.rb.y, p_new->lt.x, p_new->lt.y, p_new->rb.x, p_new->rb.y);
-  draw_rectIntFitRect(&p_canvas->dirty, p_new);
+  draw_rectIntFitRect(&p_canvas->extantDirty, p_new);
   //LOG_INFO("marking dirty rect (0x%p). after: %i, %i - %i, %i", &p_canvas->dirty, p_canvas->dirty.lt.x, p_canvas->dirty.lt.y, p_canvas->dirty.rb.x, p_canvas->dirty.rb.y);
 }
 
@@ -763,9 +790,13 @@ inline void draw_onOffset(uint32 pOffset, uint32 col, const draw_globals *p_glob
 }
 
 inline void draw_dot(uint32 x, uint32 y, uint32 col, const draw_globals *p_globals) {
-  uint32 offset=(y*draw_canvasWidth(&p_globals->canvas))+x;
-  LOG_ASSERT(offset<draw_canvasWidth(&p_globals->canvas)*draw_canvasHeight(&p_globals->canvas), "offset %u too large (limit: %u)", offset, draw_canvasWidth(&p_globals->canvas)*draw_canvasHeight(&p_globals->canvas));
-  //LOG_INFO("x: %u y: %u col: 0x%x", x, y , col);
+  uint32 offset=(y*draw_canvasRenderedWidth(&p_globals->canvas))+x;
+  LOG_ASSERT(offset<draw_canvasRenderedWidth(&p_globals->canvas)*draw_canvasHeight(&p_globals->canvas), "offset %u too large (limit: %u)", offset, draw_canvasRenderedWidth(&p_globals->canvas)*draw_canvasHeight(&p_globals->canvas));
+  /*
+  if(x==414 && y==226 && col==0x9c07abff) {
+    LOG_ERROR("col: 0x%8x", col);
+  }
+  */
   draw_onOffset(offset, col, p_globals);
 }
 
@@ -1078,6 +1109,11 @@ inline uint32 draw_gradReferenceQuadrant(const draw_gradReference *p_grad_ref) {
 uint32 draw_coordToIterGetIter(const draw_coordToIter *p_c2I, const draw_vert *p_0);
 inline uint32 draw_gradReferenceIter(const draw_gradReference *p_grad_ref, const draw_vert *p_0) {
   draw_vert delta=draw_diff(p_0, &p_grad_ref->center);
+  /*
+  if(G_trace) {
+    LOG_ERROR("delta: %f,%f",delta.x, delta.y);
+  }
+  */
   return draw_coordToIterGetIter(&p_grad_ref->p_coord_2_iters[draw_quadrant2CoordToIterIdx(draw_gradReferenceQuadrant(p_grad_ref))], &delta);
 }
 
@@ -1106,24 +1142,25 @@ inline uint32 draw_blotNumCoord2Iters(const draw_blot *p_blot) {
   return DRAW_BLOT_NUM_COORD_TO_ITERS;
 }
 
+inline float32 draw_gradATan(const draw_grad *p_grad, const draw_globals *p_globals) {
+  const draw_vert *p_fd_signed=&p_grad->fd_signed;
+  return p_fd_signed->x==0?0.0:rtu_fastATan(p_fd_signed->y/p_fd_signed->x, p_globals->p_rtu);
+}
+
 inline draw_gradTranslated *draw_gradsTrans(draw_grads *p_grad_agg, const uint32 q, const uint32 iter) {
   LOG_ASSERT(iter<=p_grad_agg->max_iter, "out of range iter: %u, max_iter: %u", iter, p_grad_agg->max_iter);
   LOG_ASSERT(q==UINT_MAX, "draw_grads can't handle multiple quadrants: %u", q);
   return &p_grad_agg->trans.p_iter_2_grad_trans[iter];
 }
 
-inline uint32 draw_proxOffset(const draw_prox *p_prox, const float32 cen, const uint32 coord) {
-  sint32 offset=(((sint32)coord-((sint32)cen))+p_prox->rel_origin);
-  LOG_ASSERT(offset>=0, "offset is an array idx and must not be negative: %i", offset);
-  LOG_ASSERT(offset<p_prox->span, "out of range offset: %u", offset);
+inline uint32 draw_proxOffset(const draw_prox *p_prox, const float32 cen, const sint32 coord) {
+  sint32 offset=(((cen<(sint32)cen)+coord-((sint32)cen))+(sint32)p_prox->rel_origin);
+  LOG_ASSERT(offset>=0, "offset is an array idx and must not be negative: span %u, offset %i, cen %f, coord %i, origin %u", p_prox->span, offset, cen, coord, p_prox->rel_origin);
+  LOG_ASSERT(offset<p_prox->span, "out of range offset: span %u, offset %i, cen %f, coord %i, origin %u", p_prox->span, offset, cen, coord, p_prox->rel_origin);
   return (uint32)offset;
 }
 
-inline uint32 draw_scanBrushLogOffset(const draw_scanBrushLog *p_b, const float32 cen, const uint32 coord) {
-  return draw_proxOffset(&p_b->proximity, cen, coord);
-}
-
-inline uint32 draw_proxOffsetIdx(const draw_prox *p_prox, const float32 x_cen, const uint32 x, const uint32 y_offset_idx) {
+inline uint32 draw_proxOffsetIdx(const draw_prox *p_prox, const float32 x_cen, const sint32 x, const uint32 y_offset_idx) {
   uint32 x_offset_idx=draw_proxOffset(p_prox, x_cen, x);
   return y_offset_idx+x_offset_idx;
 }
@@ -1137,12 +1174,12 @@ inline uint32 draw_insertProximityVal(const uint32 old_nearest, const uint32 is_
   return ((old_nearest << DRAW_PROXIMITY_SHIFT(is_nearest)) | (val<<DRAW_PROXIMITY_SHIFT(!is_nearest)));
 }
 
-inline bool draw_proxLandmarkDistRanker(const draw_prox *p_prox, const float32 x_cen, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta, const uint32 q, const uint32 iter) {
+inline bool draw_proxLandmarkDistRanker(const draw_prox *p_prox, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta, const uint32 q, const uint32 iter) {
   LOG_ASSERT(p_prox->p_xy_2_nearest_landmark!=NULL, "nearest_landmark_proximity array not declared");
   LOG_ASSERT(q<=3, "out of range q: %u", q);
   LOG_ASSERT((iter & DRAW_PROXIMITY_ITER_MASK)==iter, "out of range iter: %u", iter);
   uint32 proximity=draw_proxProximity(p_prox, landmark_row_dist_sq, x_delta);
-  uint32 offset_idx=draw_proxOffsetIdx(p_prox, x_cen, x, y_offset_idx);
+  uint32 offset_idx=y_offset_idx+x;
 
   LOG_ASSERT(offset_idx<p_prox->nearest_landmark_size, "out of range offset: %u, size %u", offset_idx, p_prox->nearest_landmark_size);
   
@@ -1174,27 +1211,26 @@ inline bool draw_scanBrushLogIsClosest(const draw_scanBrushLog *p_b, const float
   return draw_proxIsClosest(&p_b->proximity, x_cen, x, y_offset_idx, landmark_row_dist_sq, x_delta);
 }
 
-inline bool draw_scanBrushLogLandmarkDistRanker(const draw_scanBrushLog *p_b, const float32 x_cen, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta, const uint32 q, const uint32 iter) {
+inline bool draw_scanBrushLogLandmarkDistRanker(const draw_scanBrushLog *p_b, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta, const uint32 q, const uint32 iter) {
   /*No assert here as we will get dist_squareds that are > max_dist_squared.
     However draw_proxProximity ensures proximity is always >=0
    */
   //LOG_ASSERT(p_b->proximity.max_dist_squared>=landmark_row_dist_sq+(x_delta*x_delta), "dist_squared too large: %u, width: %u", landmark_row_dist_sq+(x_delta*x_delta), p_b->w.width);
-  return draw_proxLandmarkDistRanker(&p_b->proximity, x_cen, x, y_offset_idx, landmark_row_dist_sq, x_delta, q, iter);
+  return draw_proxLandmarkDistRanker(&p_b->proximity, x, y_offset_idx, landmark_row_dist_sq, x_delta, q, iter);
 }
 
-inline uint32 draw_proxRowOffset(const draw_prox *p_prox, const draw_vert *p_center, const uint32 y) {
-  //+1 is to account for us adding 1 pixel boundary to top and left of span array
+inline uint32 draw_proxRowOffset(const draw_prox *p_prox, const draw_vert *p_center, const sint32 y) {
   return draw_proxOffset(p_prox, p_center->y, y)*p_prox->span;
 }
 
-inline uint32 draw_scanBrushLogRowOffset(const draw_scanBrushLog *p_b, const draw_vert *p_center, const uint32 y) {
+inline uint32 draw_scanBrushLogRowOffset(const draw_scanBrushLog *p_b, const draw_vert *p_center, const sint32 y) {
   return draw_proxRowOffset(&p_b->proximity, p_center, y);
 }
 
 draw_vert draw_landmarkPt(draw_landmark *p_landmark, const uint32 q, const draw_vert *p_mid);
 inline sint32 draw_landmarkXDelta(draw_landmark *p_landmark, const uint32 x, const uint32 q, const draw_vert *p_mid) {
   float32 landmark_x=draw_landmarkPt(p_landmark, q, p_mid).x;
-  return ((landmark_x+1)-x)*DRAW_PROXIMITY_FIXED_POINT;
+  return ((landmark_x+DRAW_PROXIMITY_ORIGIN_OFFSET)-x)*DRAW_PROXIMITY_FIXED_POINT;
 }
 
 inline float32 draw_scanBrushLogRelativise(const draw_scanBrushLog *p_b, float32 brush_center, uint32 coord) {
@@ -1204,6 +1240,67 @@ inline float32 draw_scanBrushLogRelativise(const draw_scanBrushLog *p_b, float32
 
 inline uint32 draw_proxHalfSpan(const draw_prox *p_prox, const uint32 width, const bool long_half) {
   return (width>>1)+1+long_half;
+}
+
+inline uint32 draw_dirtyNumRects(draw_globals *p_globals) {
+  return p_globals->canvas.dirty.lt.y!=INT_MAX;
+}
+
+inline draw_rectInt* draw_canvasDirty(draw_canvas *p_canvas) {
+  return &p_canvas->dirty;
+}
+
+inline draw_rectInt* draw_canvasExtantDirty(draw_canvas *p_canvas) {
+  return &p_canvas->extantDirty;
+}
+
+inline uint32 draw_dirtyTop(draw_globals *p_globals, const uint32 idx) {
+  return draw_canvasDirty(&p_globals->canvas)->lt.y;
+}
+
+inline uint32 draw_dirtyBottom(draw_globals *p_globals, const uint32 idx) {
+  return draw_canvasDirty(&p_globals->canvas)->rb.y;
+}
+
+inline uint32 draw_dirtyLeft(draw_globals *p_globals, const uint32 idx) {
+  return draw_canvasDirty(&p_globals->canvas)->lt.x;
+}
+
+inline uint32 draw_dirtyRight(draw_globals *p_globals, const uint32 idx) {
+  return draw_canvasDirty(&p_globals->canvas)->rb.x;
+}
+
+inline uint32 draw_extantDirtyNumRects(draw_globals *p_globals) {
+  return draw_canvasExtantDirty(&p_globals->canvas)->lt.y!=INT_MAX;
+}
+
+inline uint32 draw_extantDirtyTop(draw_globals *p_globals, const uint32 idx) {
+  return draw_canvasExtantDirty(&p_globals->canvas)->lt.y;
+}
+
+inline uint32 draw_extantDirtyBottom(draw_globals *p_globals, const uint32 idx) {
+  return draw_canvasExtantDirty(&p_globals->canvas)->rb.y;
+}
+
+inline uint32 draw_extantDirtyLeft(draw_globals *p_globals, const uint32 idx) {
+  return draw_canvasExtantDirty(&p_globals->canvas)->lt.x;
+}
+
+inline uint32 draw_extantDirtyRight(draw_globals *p_globals, const uint32 idx) {
+  return draw_canvasExtantDirty(&p_globals->canvas)->rb.x;
+}
+
+float32 draw_brushScaleFactor(const draw_brush *p_brush);
+inline void draw_strokeContinue(draw_stroke *p_stroke, const draw_vert *p_start, draw_globals *p_globals) {
+  //this simply a move without wiping the canvas first
+  draw_vert scaled_start=draw_by(p_start, draw_brushScaleFactor(&p_stroke->brush));
+  p_stroke->last=scaled_start;
+  p_stroke->state=DRAW_STROKE_MOVED;
+}
+
+float32 draw_scanFillLogCheckAngle(draw_scanFillLog *p_f, const draw_grad *p_last_grad, const draw_grad *p_grad, const draw_globals *p_globals);
+inline float32 draw_scanLogCheckAngle(draw_scanLog *p_log, const draw_grad *p_last_grad, const draw_grad *p_grad, const draw_globals *p_globals) {
+  return draw_scanFillLogCheckAngle(&p_log->f, p_last_grad, p_grad, p_globals);
 }
 
 bool draw_tail(draw_vert *p_0, draw_vert *p_1, draw_onPtCb *p_on_pt_cb, draw_scanFillLog *p_arg, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals);
@@ -1221,7 +1318,8 @@ void draw_thickBlot(const draw_vert *p_box_dims, const draw_vert *p_0, const uin
 void draw_dotSimple(const float32 x, const float32 y, const bool x_dom, const uint32 col);
 
 void draw_quadInit(draw_quad *p_bez, const draw_vert **pp_verts);
-draw_vert draw_quadStartFDGen(draw_quad *p_bez, float32 step);
+void draw_quadStartFDGen(draw_quad *p_bez, float32 step);
+float32 draw_test_blurWidth(float32 saved_width);
 sint8 *draw_test(void);
 void draw_scanLogStartEdge(draw_scanLog *p_log, const uint32 iter, const draw_vert *p_0, const draw_globals *p_globals);
 void draw_scanLogStartBezEdge(draw_scanLog *p_log, const uint32 iter, const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2, const draw_globals *p_globals);
@@ -1238,6 +1336,7 @@ void draw_brushInit(draw_brush *p_brush, const uint32 col, const float32 breadth
 bool draw_brushRenderable(const draw_brush *p_brush);
 float32 draw_brushHalfWidth(const draw_brush *p_brush);
 void draw_brushDestroy(draw_brush *p_brush);
+uint32 draw_brushMagFactor(const draw_brush *p_brush);
 
 void draw_strokeInit(draw_stroke *p_stroke, const draw_brush *p_brush, draw_globals *p_globals);
 bool draw_strokeRenderable(const draw_stroke *p_stroke);
@@ -1247,8 +1346,8 @@ void draw_strokeRender(draw_stroke *p_stroke, draw_globals *p_globals);
 void draw_strokeReset(draw_stroke *p_stroke, draw_globals *p_globals);
 void draw_quadPtsInit(draw_quadPts *p_pts, const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2);
 void draw_quadPtsSplit(const draw_quadPts *p_pts, float32 t, draw_quadPts *p_fst, draw_quadPts *p_snd);
-bool draw_fillIter(draw_grad *p_grad, draw_gradTranslated *p_grad_trans, const draw_strokeWidth *p_w);
-void draw_gradInitFill(draw_grad *p_grad, const draw_strokeWidth *p_w);
+bool draw_fillIter(draw_grad *p_grad, draw_gradTranslated *p_grad_trans, const draw_strokeWidth *p_w, const draw_globals *p_globals);
+void draw_gradInitFill(draw_grad *p_grad, const draw_strokeWidth *p_w, const draw_globals *p_globals);
 draw_vert draw_vertRotate(const draw_vert *p_vert, const float32 ang, const draw_vert *p_origin);
 uint32 draw_renderCoreMaxIter(const draw_renderCore *p_renderCore);
 float32 draw_vertAng(const draw_vert *p_0, const draw_vert *p_1);
@@ -1266,7 +1365,9 @@ void draw_gradMarkDirty(const draw_grad *p_grad, const draw_gradTranslated *p_gr
 void draw_rectIntReify(draw_rectInt *p_orig);
 bool draw_rectIntFilled(const draw_rectInt *p_rect);
 void draw_canvasIgnoreDirt(draw_canvas *p_canvas);
-void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h);
+void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h, const float32 devicePixelRatio);
+void draw_canvasWipe(draw_canvas *p_canvas, const draw_globals *p_globals);
+void draw_canvasClearAll(draw_canvas *p_canvas);
 void draw_coordToIterInit(draw_coordToIter *p_c2I, draw_grads *p_grad_agg, const draw_vert *p_origin, const sint32 q, const draw_strokeWidth *p_w, const uint32 start_iter, const uint32 end_iter);
 uint32 draw_coordToIterGetIter(const draw_coordToIter *p_c2I, const draw_vert *p_0);
 void draw_coordToIterDestroy(draw_coordToIter *p_c2I);
@@ -1291,6 +1392,7 @@ sint32 draw_gradReferenceVert(const draw_gradReference *p_grad_ref);
 draw_grad *draw_gradsGradPtr(draw_grads *p_grad_agg, const uint32 q);
 void draw_proxDestroy(draw_prox *p_prox);
 void draw_vertNullableInit(draw_vertNullable *p_vertInstPtr, const draw_vert *p_0);
+void draw_blotContinue(const draw_vert *p_0, const draw_vert *p_fd, const float32 breadth, const float32 blur_width, const uint32 col, draw_globals *p_globals);
 
 #endif
 

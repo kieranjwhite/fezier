@@ -411,15 +411,21 @@ static void line(SDL_Surface *s,
 #define DRAW_DIR_TEST DRAW_DIR_DL
 
 sint32 main_unit_tests(void) {
-  sint8 *result = draw_test();
-  if(result != 0) {
-    printf("%s\n", result);
+  sint8 *rtu_result = rtu_test();
+  if(rtu_result != 0) {
+    printf("%s\n", rtu_result);
+  } else {
+    printf("ALL RTU TESTS PASSED\n");
+  }
+  sint8 *draw_result = draw_test();
+  if(draw_result != 0) {
+    printf("%s\n", draw_result);
   } else {
     printf("ALL DRAW TESTS PASSED\n");
   }
   printf("Tests run: %d\n", tests_run);
    
-  return result != 0;
+  return rtu_result != 0 && draw_result !=0;
 }
 
 sint32 main(sint32 argc, char **argv)
@@ -435,9 +441,21 @@ sint32 main(sint32 argc, char **argv)
   uint32 green;
   uint32 blue;
 
-  sint32 screenWidth = 800;
+  sint32 screenWidth = 768;
   sint32 screenHeight = 1280;
-
+  float32 devicePixelRatio = 2; /* This indicates how aggressive the
+				 *  renderer's pixel scaling
+				 *  optimisation is. The greater
+				 *  the pixel density of a screen the
+				 *  larger this value should be.
+				 *
+				 *  Typically 1 is passed for 150dpi
+				 *  screens, 2 for retina type
+				 *  displays. A negative value
+				 *  indicates that no pixel scaling
+				 *  optimisation should be performed
+				 */
+  
   bool done = false;
 
   // Try to initialize SDL. If it fails, then give up.
@@ -521,8 +539,13 @@ sint32 main(sint32 argc, char **argv)
   SDL_FreeSurface( temp );
 
   draw_globals *p_globals=draw_globalsInit();
+  rtu_initFastATan(DRAW_ATAN_DIVISORS, p_globals->p_rtu);
+  rtu_initFastDiv(DRAW_DIV_LIMIT, p_globals->p_rtu);
   main_unit_tests();
-  render(screen, surface, p_globals, screenWidth, screenHeight);
+
+  uint32 *p_pixels=(uint32 *)rtu_memAlloc(screenWidth*screenHeight*sizeof(uint32));
+  draw_init(screenWidth, screenHeight, devicePixelRatio, p_pixels, p_globals);
+  render(screen, surface, p_globals);
 
   SDL_Flip(screen);
 
@@ -582,7 +605,10 @@ sint32 main(sint32 argc, char **argv)
   // hurt and I'd rather be safe than sorry.
   SDL_Quit();
 
-  draw_finalise(p_globals);
-  rtu_finaliseDiv(p_globals->p_rtu);
+  if(p_pixels) {
+    rtu_memFree(p_pixels);
+  }
+  rtu_destroyDiv(p_globals->p_rtu);
+  rtu_destroyATan(p_globals->p_rtu);
   draw_globalsDestroy(p_globals);
 }

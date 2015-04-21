@@ -18,9 +18,10 @@
 #ifndef IMAGE_BUF_H
 #define IMAGE_BUF_H
 
+#include "../draw.h"
 #include "../../types.h"
 #include <SDL.h>
 
-void image_buf_commit(SDL_Surface *p_surface, uint32 *p_data, uint32 width, uint32 height);
+void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag);
 
 #endif
