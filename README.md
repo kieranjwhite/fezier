@@ -119,11 +119,10 @@ canvas / surface. The dirty rect coordinates are inclusive.
 
 If fezier was initialised with a devicePixelRatio > 0, then the
 destination coords on your canvas / surface must be calculated by
-multiplying the the x, y coords in the dirty rectangle by the value
-returnd by draw_brushMagFactor(&brush) and dirty rectangle must be
-scaled by the same value during compositing. The bounding box
-containing the source pixels is specified by the recangle returned by
-the draw_canvasDirty function.
+multiplying the the x,y coords in the dirty rectangle by the value
+returnd by draw_brushMagFactor(&brush) and the source pixels (still
+specified by the dirty rectangle) must be scaled by the same value
+during compositing.
 
 The dirty recangle returned by the draw_canvasDirty function is reset
 at the start of every draw_strokeMoveTo function call. To allow for
