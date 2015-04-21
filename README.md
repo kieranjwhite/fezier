@@ -37,7 +37,7 @@ c/ccan/typesafe_cb/LICENSE for details.
 # Dependencies
 This library can be included in your own programs
 without requiring any other separately distributed libraries. However
-frezier does have a test harness (in c/rendering/test/main.c) and this
+Fezier does have a test harness (in c/rendering/test/main.c) and this
 does require SDL 1.2.
 
 # Instructions for use
