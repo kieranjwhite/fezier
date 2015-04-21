@@ -127,8 +127,8 @@ during compositing.
 The dirty recangle returned by the draw_canvasDirty function is reset
 at the start of every draw_strokeMoveTo function call. To allow for
 greater control there is also the extant dirty rectangle which is
-returned with a call to draw_canvasExtantDirty. This dirty rectangle
-is reset as by a call to draw_strokeMoveTO (as before) but also by
+returned by a call to draw_canvasExtantDirty. This dirty rectangle is
+reset with a call to draw_strokeMoveTO (as before) but also by
 invoking the following code anytime as desired:
 
 <pre>
