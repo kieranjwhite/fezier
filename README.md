@@ -1,8 +1,8 @@
-# fezier
+# Fezier
 A small, simple C library for rendering feathered Bézier curves.
 
 # Copyright
-Copyright 2015 Kieran White. This file is part of fezier.
+Copyright 2015 Kieran White. This file is part of Fezier.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
@@ -42,7 +42,7 @@ does require SDL 1.2.
 
 # Instructions for use
 
-<h3>Initialising</h3>
+<h3>Initialising Fezier</h3>
 <pre>
 //Globally declared struct
 draw_globals *G_p_globals;
@@ -111,13 +111,13 @@ render function in the file c/rendering/test/test_render.c contains
 the required code.
 
 The dirty rectangle is returned by
-draw_canvasDirty(&G_p_globals->canvas).  If fezier was initialised
+draw_canvasDirty(&G_p_globals->canvas).  If Fezier was initialised
 with a devicePixelRatio < 0, the returned dirty rectangle defines the
 location of pixels which have been altered in
 G_p_globals->canvas.p_bitmap and their destination rectangle on your
 canvas / surface. The dirty rect coordinates are inclusive.
 
-If fezier was initialised with a devicePixelRatio > 0, then the
+If Fezier was initialised with a devicePixelRatio > 0, then the
 destination coords on your canvas / surface must be calculated by
 multiplying the the x,y coords in the dirty rectangle by the value
 returnd by draw_brushMagFactor(&brush) and the source pixels (still
@@ -140,7 +140,7 @@ draw_canvasResetDirty(&G_p_globals->canvas);
 draw_brushDestroy(&brush); //frees memory allocated when brush was initialised
 </pre>
 
-<h3>Finalising</h3>
+<h3>Finalising Fezier</h3>
 <pre>
 //Include these lines in your clean-up code at the end
 rtu_memFree(G_p_globals->canvas.p_bitmap); //frees p_pixels array above
