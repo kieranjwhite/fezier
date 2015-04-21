@@ -41,8 +41,109 @@ frezier does have a test harness (in c/rendering/test/main.c) and this
 does require SDL 1.2.
 
 # Instructions for use
-Follow the example in the test harness, specifically the render
-function in the file c/rendering/test/test_render.c
+
+<h3>Initialising</h3>
+<pre>
+//Globally declared struct
+draw_globals *G_p_globals;
+
+//Include these lines in your initialisation code
+G_p_globals=draw_globalsInit();
+rtu_initFastATan(DRAW_ATAN_DIVISORS, G_p_globals->p_rtu);
+rtu_initFastDiv(DRAW_DIV_LIMIT, G_p_globals->p_rtu);
+
+/* devicePixelRatio indicates the display's pixel density, larger
+ * values indicate a larger DPI. This is used to decide on the optimum
+ * rendering quality required for the current display.
+ * A value of -1 ensures that scene is rendered at full resolution.
+ * 1 is a good value or 150dpi devices, 2 for retina-type displays.
+ * Other positive floating point values can also be provided.
+ */
+uint32 w=640;
+uint32 h=480;
+uint32 *p_pixels=rtu_memAlloc(w*h);
+draw_init(w, h, devicePixelRatio, p_pixels, G_p_globals);
+</pre>
+
+<h3>Initialise a brush</h3>
+<pre>
+draw_brush brush;
+
+/* colour is a uint32 in 0xaarrggbb format.
+ *
+ * breadth would be the brush width it there was no feathering.
+ * Total width of the brush is breadth+(feather_width*0.5) since half the feathering
+ * is inside the specified breadth, and half is outside the specified breadth.
+draw_brushInit(&brush, colour, breadth, feather_width, G_p_globals);
+</pre>
+
+<h3>Initialise a stroke</h3>
+<pre>
+draw_stroke stroke;
+//The same brush can be used across multiple strokes
+draw_strokeInit(&stroke, &brush, G_p_globals);
+// A stroke doesn't need to be destroyed when you're finished with it (currently).
+</pre>
+
+<h3>Draw a curve</h3>
+<pre>
+draw_vert start={ .x=100, .y=100 };
+draw_strokeMoveTO(&stroke, &start, G_p_globals);
+
+//draw_strokeQuadTo can be invoked more than once for different coords
+draw_vert ctrl={ .x=150, .y=150 };
+draw_vert end={ .x=200, .y=200 };
+draw_strokeQuadTo(&stroke, &ctrl, &end, G_p_globals);
+
+//draw the end cap
+draw_strokeRender(&stroke, G_p_globals);
+</pre>
+
+Next you will need to composite the dirty rect in G_p_globals->canvas.p_bitmap
+to your canvas / surface. The details on how to do this vary depending on
+which library you're using. An example of how do this can be found in
+the test harness. The render function in the file
+c/rendering/test/test_render.c contains the required code.
+
+The dirty rectangle is returned by
+draw_canvasDirty(&G_p_globals->canvas).  If fezier was initialised
+with a devicePixelRatio < 0, the returned dirty rectangle defines the
+location of pixels which have been altered in
+G_p_globals->canvas.p_bitmap and their destination rectanangle on your
+canvas / surface. The dirty rect coordinates are inclusive.
+
+If fezier was initialised with a devicePixelRatio > 0, then the
+destination coords for the dirty rectangle must be calculated by
+multiplying the the x, y coords in the dirty rectangle by the value
+returnd by draw_brushMagFactor(&brush) and dirty rectangle must be
+scaled by the same value during compositing. The bounding box
+containing the source pixels is specified by the recangle returned by
+the draw_canvasDirty function.
+
+The dirty recangle returned by the draw_canvasDirty function is reset
+at the start of every draw_strokeMoveTo function call. To allow for
+greater control there is also the extant dirty rectangle which is
+returned with a call to draw_canvasExtantDirty. This dirty rectangle
+is reset as by a call to draw_strokeMoveTO (as before) but also by
+invoking the following code anytime as desired:
+
+<pre>
+draw_canvasResetDirty(&G_p_globals->canvas);
+</pre>
+
+<h3>Finalising a brush</h3>
+<pre>
+draw_brushDestroy(&brush); //frees memory allocated when brush was initialised
+</pre>
+
+<h3>Finalising</h3>
+<pre>
+//Include these lines in your clean-up code at the end
+rtu_memFree(G_p_globals->canvas.p_bitmap); //frees p_pixels array above
+rtu_destroyDiv(G_p_globals->p_rtu);
+rtu_destroyATan(G_p_globals->p_rtu);
+draw_globalsDestroy(G_p_globals);
+</pre>
 
 # Compiling and running the test harness
 <pre>
