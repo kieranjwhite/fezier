@@ -75,7 +75,7 @@ draw_brush brush;
 
 /* colour is a uint32 in 0xaarrggbb format.
  *
- * breadth would be the brush width it there was no feathering.
+ * breadth would be the brush width if there was no feathering.
  * Total width of the brush is breadth+(feather_width*0.5) since half the feathering
  * is inside the specified breadth, and half is outside the specified breadth.
 draw_brushInit(&brush, colour, breadth, feather_width, G_p_globals);
@@ -86,7 +86,7 @@ draw_brushInit(&brush, colour, breadth, feather_width, G_p_globals);
 draw_stroke stroke;
 //The same brush can be used across multiple strokes
 draw_strokeInit(&stroke, &brush, G_p_globals);
-// A stroke doesn't need to be destroyed when you're finished with it (currently).
+//Currently a stroke doesn't need to be destroyed when you're finished with it.
 </pre>
 
 <h3>Draw a curve</h3>
@@ -94,7 +94,7 @@ draw_strokeInit(&stroke, &brush, G_p_globals);
 draw_vert start={ .x=100, .y=100 };
 draw_strokeMoveTO(&stroke, &start, G_p_globals);
 
-//draw_strokeQuadTo can be invoked more than once for different coords
+//draw_strokeQuadTo can be invoked more than once with different coords
 draw_vert ctrl={ .x=150, .y=150 };
 draw_vert end={ .x=200, .y=200 };
 draw_strokeQuadTo(&stroke, &ctrl, &end, G_p_globals);
@@ -103,11 +103,12 @@ draw_strokeQuadTo(&stroke, &ctrl, &end, G_p_globals);
 draw_strokeRender(&stroke, G_p_globals);
 </pre>
 
-Next you will need to composite the dirty rect in G_p_globals->canvas.p_bitmap
-to your canvas / surface. The details on how to do this vary depending on
-which library you're using. An example of how do this can be found in
-the test harness. The render function in the file
-c/rendering/test/test_render.c contains the required code.
+Next you will need to composite the dirty rect in
+G_p_globals->canvas.p_bitmap to your canvas / surface. The details on
+how to do this vary depending on which library you're using. An
+example of how do this in SDL can be found in the test harness. The
+render function in the file c/rendering/test/test_render.c contains
+the required code.
 
 The dirty rectangle is returned by
 draw_canvasDirty(&G_p_globals->canvas).  If fezier was initialised
@@ -117,7 +118,7 @@ G_p_globals->canvas.p_bitmap and their destination rectanangle on your
 canvas / surface. The dirty rect coordinates are inclusive.
 
 If fezier was initialised with a devicePixelRatio > 0, then the
-destination coords for the dirty rectangle must be calculated by
+destination coords on your canvas / surface must be calculated by
 multiplying the the x, y coords in the dirty rectangle by the value
 returnd by draw_brushMagFactor(&brush) and dirty rectangle must be
 scaled by the same value during compositing. The bounding box
