@@ -114,7 +114,7 @@ The dirty rectangle is returned by
 draw_canvasDirty(&G_p_globals->canvas).  If fezier was initialised
 with a devicePixelRatio < 0, the returned dirty rectangle defines the
 location of pixels which have been altered in
-G_p_globals->canvas.p_bitmap and their destination rectanangle on your
+G_p_globals->canvas.p_bitmap and their destination rectangle on your
 canvas / surface. The dirty rect coordinates are inclusive.
 
 If fezier was initialised with a devicePixelRatio > 0, then the
