@@ -114,9 +114,9 @@ c/rendering/test/test_render.c contains the required code.
 A dirty rectangle is returned by
 draw_canvasDirty(&G_p_globals->canvas). If Fezier was initialised with
 a devicePixelRatio of -1, the returned dirty rectangle specifies the
-region within G_p_globals->canvas.p_bitmap where pixels which have
-been altered and their destination rectangle on your canvas /
-surface. The dirty rectangle coordinates are inclusive.
+region within G_p_globals->canvas.p_bitmap where pixels have been
+altered and their destination rectangle on your canvas / surface. The
+dirty rectangle coordinates are inclusive.
 
 If Fezier was initialised with a devicePixelRatio > 0, then the
 destination coords on your canvas / surface must be calculated by
