@@ -105,16 +105,15 @@ draw_strokeQuadTo(&stroke, &ctrl, &end, G_p_globals);
 draw_strokeRender(&stroke, G_p_globals);
 </pre>
 
-Next you will need to composite the dirty rect in
-G_p_globals->canvas.p_bitmap to your canvas / surface. The details on
-how to do this vary depending on which library you're using. An
-example of how do this in SDL can be found in the test harness. The
-render function in the file c/rendering/test/test_render.c contains
-the required code.
+Next you will need to composite G_p_globals->canvas.p_bitmap to your
+canvas / surface. The details on how to do this vary depending on
+which library you're using. An example of how do this in SDL can be
+found in the test harness. The render function in the file
+c/rendering/test/test_render.c contains the required code.
 
-The dirty rectangle is returned by
+A dirty rectangle is returned by
 draw_canvasDirty(&G_p_globals->canvas).  If Fezier was initialised
-with a devicePixelRatio < 0, the returned dirty rectangle defines the
+with a devicePixelRatio of -1, the returned dirty rectangle defines the
 location of pixels which have been altered in
 G_p_globals->canvas.p_bitmap and their destination rectangle on your
 canvas / surface. The dirty rect coordinates are inclusive.
