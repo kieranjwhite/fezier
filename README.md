@@ -118,12 +118,13 @@ region within G_p_globals->canvas.p_bitmap where pixels have been
 altered and their destination rectangle on your canvas / surface. The
 dirty rectangle coordinates are inclusive.
 
-If Fezier was initialised with a devicePixelRatio > 0, then the
+If Fezier was initialised with a devicePixelRatio > 0 then, while the
+source pixels are specified by the dirty rectangle as before, the
 destination coords on your canvas / surface must be calculated by
 multiplying the the x,y coords in the dirty rectangle by the value
-returned by draw_brushMagFactor(&brush) and the source pixels (still
-specified by the dirty rectangle) must be scaled by the same value
-during compositing.
+returned by draw_brushMagFactor(&brush). Consequently if the
+draw_brushMagFactor function returns a number >1, then the copied
+regions must be scaled up by this value.
 
 The dirty recangle returned by the draw_canvasDirty function is reset
 at the start of every draw_strokeMoveTo function call. To allow for
