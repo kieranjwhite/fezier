@@ -1,5 +1,5 @@
 /* Copyright 2015 Kieran White.
-   This file is part of fezier.
+   This file is part of Fezier.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -74,7 +74,7 @@ inline uint32 rtu_abs(sint32 v) {
 #define LOG_ERROR_LEVEL 2
 #define LOG_NO_REPORTING_LEVEL 3
 
-#define LOG_LEVEL LOG_ERROR_LEVEL
+#define LOG_LEVEL LOG_INFO_LEVEL
 
 typedef struct {
   uint32 divisor_limit;
@@ -109,37 +109,37 @@ void rtu_destroyDiv(rtu_globals *p_globals);
 
 #if LOG_LEVEL <= LOG_ASSERT_LEVEL
 
-#define DO_ASSERT(EXPR) EXPR
+#define DO_ASSERT(...) __VA_ARGS__
 #define LOG_ASSERT(CONDITION, ...) if(!(CONDITION) && rtu_onFail()) { rtu_log("FAILED ASSERT ", __FILE__, __LINE__, __VA_ARGS__); }
 
 #if LOG_LEVEL <= LOG_INFO_LEVEL
 
-#define DO_INFO(EXPR) EXPR
+#define DO_INFO(...) __VA_ARGS__
 #define LOG_INFO(...) rtu_log("", __FILE__, __LINE__, __VA_ARGS__);
 
 #else
 
-#define DO_INFO(EXPR)
+#define DO_INFO(...)
 #define LOG_INFO(...)
 
 #endif
 
 #else
 
-#define DO_INFO(EXPR)
+#define DO_INFO(...)
 #define LOG_INFO(...)
 
-#define DO_ASSERT(EXPR)
+#define DO_ASSERT(...)
 #define LOG_ASSERT(...)
 
 #endif
 
 #else
 
-#define DO_INFO(EXPR)
+#define DO_INFO(...)
 #define LOG_INFO(...)
 
-#define DO_ASSERT(EXPR)
+#define DO_ASSERT(...)
 #define LOG_ASSERT(...)
 
 #define LOG_ERROR(...)

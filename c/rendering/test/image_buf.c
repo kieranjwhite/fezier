@@ -18,8 +18,11 @@
 #include <stdio.h>
 #include <SDL.h>
 
+#include "image_buf.h"
 #include "../../types.h"
 #include "../draw.h"
+
+uint32 *G_max_p_dest=NULL;
 
 void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag) {
   /* This function is unoptimised in that is makes no attempt to
@@ -41,9 +44,6 @@ void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag)
   uint32 *p_data=p_canvas->p_bitmap;
   SDL_PixelFormat *p_pf=p_surface->format;
 
-  //uint32 width=1+(right-left);
-  //uint32 height=1+(bottom-top);
-  uint32 col=0,row=0;
   uint32 pitch=p_surface->pitch;
   uint32 pitch_pixels=pitch>>2;
   uint32 *p_start_dest=(uint32 *)(p_surface->pixels);
@@ -66,6 +66,7 @@ void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag)
       //*p_dest=renderedCol;
       
       for(uint32 destYOffset=0; destYOffset<mag; destYOffset++) {
+	LOG_ASSERT(p_start_row_dest-p_start_dest<IMAGE_BUF_SCREEN_WIDTH*IMAGE_BUF_SCREEN_HEIGHT, "out of range start row dest %p, %p", p_start_row_dest, p_start_dest);
 	  if(destYOffset+r*mag>fullHeight) {
 	    break;
 	  }
@@ -74,7 +75,11 @@ void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag)
 	  if(destXOffset+c*mag>fullWidth) {
 	    break;
 	  }
+	  LOG_ASSERT(p_dest-p_start_row_dest<IMAGE_BUF_SCREEN_WIDTH, "out of range dest %p, %p", p_dest, p_start_row_dest);
 	  *p_dest=renderedCol;
+	  if(p_dest>G_max_p_dest) {
+	    G_max_p_dest=p_dest;
+	  }
 	  p_dest++;
 	}
 	p_start_row_dest+=fullWidth;

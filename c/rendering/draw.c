@@ -1,5 +1,5 @@
 /* Copyright 2015 Kieran White.
-   This file is part of fezier.
+   This file is part of Fezier.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -105,7 +105,6 @@ extern inline float32 draw_gradRow2NewSideM(const draw_grad *p_grad, const float
 extern inline uint32 draw_antiAlias(float32 coord, uint32 col, bool next_pixel);
 extern inline float32 draw_rangeDist(sint32 min, sint32 max, sint32 val);
 extern inline draw_vert* draw_quadNextFD(draw_quad *p_bez);
-extern inline void draw_scanSpanUpdateIter(draw_scanSpan *p_span, const uint32 iter, const uint32 bounds);
 /*
 extern inline bool draw_polariseXDir(uint32 dir);
 extern inline bool draw_polariseYDir(uint32 dir);
@@ -195,6 +194,8 @@ extern inline float32 draw_gradATan(const draw_grad *p_grad, const draw_globals 
 extern inline float32 draw_scanLogCheckAngle(draw_scanLog *p_log, const draw_grad *p_last_grad, const draw_grad *p_grad, const draw_globals *p_globals);
 extern inline draw_rectInt* draw_canvasDirty(draw_canvas *p_globals);
 extern inline draw_rectInt* draw_canvasExtantDirty(draw_canvas *p_globals);
+extern inline uint32 draw_renderCoreHeight(const draw_renderCore *p_render_core, const draw_scanFillLog *p_f);
+extern inline void draw_brushInitInternal(draw_brush *p_brush, const uint32 col, const float32 breadth, const float32 blur_width, draw_globals *p_globals, const bool recalc_scaling);
 
 draw_globals draw_globalsInitialFields(void) {
   draw_globals g={
@@ -254,6 +255,7 @@ void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h, cons
   p_canvas->renderedH=p_canvas->h=h; //depending on the brush renderedH can differ from h if devicePixelRatio is <0 or is ==1.
   LOG_INFO("pix ratio: %f", devicePixelRatio);
   p_canvas->devicePixelRatio=devicePixelRatio;
+  p_canvas->scaling_idx=UINT_MAX;
   draw_rectIntInit(&p_canvas->dirty);
   draw_rectIntInit(&p_canvas->extantDirty);
   p_canvas->stop=false;
@@ -302,21 +304,30 @@ static sint8 *draw_test_canvasFindStdScalingFactor(void) {
 float draw_canvasSetAndGetScalingIdx(draw_canvas *p_canvas, const uint32 opacity, const float32 blur_width) {
   //opacity ranges from 0-0xff
   //blur_width is the number of pixels it takes for a gradiant to go from opacity pixel opacity to zero opacity
+
   if(p_canvas->devicePixelRatio<0) {
     //LOG_INFO("no scaling allowed");
     return 0;
   }
-  float32 scaling_factor=MIN(1,opacity/(p_canvas->devicePixelRatio*blur_width*DRAW_SMALLEST_VISIBLE_OPACITY_CHANGE_PER_STD_PIXEL));
-  LOG_INFO("opacity: 0x%x blur: %f pix ratio: %f scaling: %f", opacity, blur_width, p_canvas->devicePixelRatio, scaling_factor);
-  uint32 scaling_idx=draw_canvasFindStdScalingIdx(p_canvas, scaling_factor);
-  float32 std_scaling_factor=p_canvas->std_scaling_factors[scaling_idx];
 
-  LOG_ASSERT(p_canvas->std_mag_factors[scaling_idx]*(uint32)(p_canvas->renderedW*std_scaling_factor)==p_canvas->renderedW, "p_canvas->renderedW, %u must be divisible by all standard scalling factors", p_canvas->renderedW);
-  LOG_ASSERT(p_canvas->std_mag_factors[scaling_idx]*(uint32)(p_canvas->renderedH*std_scaling_factor)==p_canvas->renderedH, "p_canvas->renderedH, %u must be divisible by all standard scalling factors", p_canvas->renderedW);
+  /*
+  if(!recalc) {
+    LOG_ASSERT(p_canvas->scaling_idx!=UINT_MAX, "unitialised scaling idx");
+    return p_canvas->scaling_idx;
+  }
+  */
+  
+  float32 scaling_factor=MIN(1,opacity/(p_canvas->devicePixelRatio*blur_width*DRAW_SMALLEST_VISIBLE_OPACITY_CHANGE_PER_STD_PIXEL));
+  //LOG_INFO("opacity: 0x%x blur: %f pix ratio: %f scaling: %f", opacity, blur_width, p_canvas->devicePixelRatio, scaling_factor);
+  p_canvas->scaling_idx=draw_canvasFindStdScalingIdx(p_canvas, scaling_factor);
+  float32 std_scaling_factor=p_canvas->std_scaling_factors[p_canvas->scaling_idx];
+
+  LOG_ASSERT(p_canvas->std_mag_factors[p_canvas->scaling_idx]*(uint32)(p_canvas->renderedW*std_scaling_factor)==p_canvas->renderedW, "p_canvas->renderedW, %u must be divisible by all standard scalling factors", p_canvas->renderedW);
+  LOG_ASSERT(p_canvas->std_mag_factors[p_canvas->scaling_idx]*(uint32)(p_canvas->renderedH*std_scaling_factor)==p_canvas->renderedH, "p_canvas->renderedH, %u must be divisible by all standard scalling factors", p_canvas->renderedH);
 
   p_canvas->w=((uint32)(p_canvas->renderedW*std_scaling_factor));
   p_canvas->h=((uint32)(p_canvas->renderedH*std_scaling_factor));
-  return scaling_idx;
+  return p_canvas->scaling_idx;
 }
 
 void draw_canvasCheckAndClear(draw_canvas *p_canvas, const draw_globals *p_globals) {
@@ -577,7 +588,6 @@ uint32 draw_findFirstIter4Row(draw_grad *p_iter_2_grad, draw_gradTranslated *p_i
 static sint8 *draw_test_findFirstIter4Row(void) {
   draw_globals *p_globals=draw_globalsInit();
   rtu_initFastATan(DRAW_ATAN_DIVISORS, p_globals->p_rtu);
-  draw_vert null_offset={.x=0, .y=0};
   draw_strokeWidth w={
     .width=100,
     .width_squared=10000,
@@ -616,6 +626,7 @@ static sint8 *draw_test_findFirstIter4Row(void) {
 
   mu_assert("should remain on a draw_grad until we move past it", draw_findFirstIter4Row(grads, grad_trans, 0, 0, 0, 1, &new_side_m, 1)==0);
   rtu_destroyATan(p_globals->p_rtu);
+  draw_globalsDestroy(p_globals);
   return 0;
 }
 
@@ -649,10 +660,6 @@ sint32 draw_gradIterInc(
     draw_gradRow2NewSideM(p_b, row_sides[1], start_x)
   };
 
-  //these two vars are expressions on opposite sides of a cross-multiplied inequality
-  float32 new_a_c6_b_prod=new_side_start_xs[0]*p_b->c6;
-  float32 new_b_c6_a_prod=new_side_start_xs[1]*p_a->c6;
-  
   bool a_is_first;
   sint32 a_sgn=SGN(p_a->c6);
   sint32 b_sgn=SGN(p_b->c6);
@@ -711,6 +718,8 @@ static sint8 *draw_test_gradIterInc(void) {
   DO_ASSERT(p_vertical->idx=1);
   DO_ASSERT(grad_trans[0].idx=0);
   DO_ASSERT(grad_trans[1].idx=1);
+  DO_ASSERT(grads[0].fd_recorded=true);
+  DO_ASSERT(grads[1].fd_recorded=true);
   draw_fillIter(&grads[0], &grad_trans[0], &w, p_globals);
   draw_fillIter(&grads[1], &grad_trans[1], &w, p_globals);
 
@@ -751,6 +760,8 @@ static sint8 *draw_test_gradIterInc(void) {
   DO_ASSERT(p_vertical->idx=1);
   DO_ASSERT(grad_trans_h[0].idx=0);
   DO_ASSERT(grad_trans_h[1].idx=1);
+  DO_ASSERT(grads_h[0].fd_recorded=true);
+  DO_ASSERT(grads_h[1].fd_recorded=true);
   draw_fillIter(&grads_h[0], &grad_trans_h[0], &w, p_globals);
   draw_fillIter(&grads_h[1], &grad_trans_h[1], &w, p_globals);
 
@@ -763,6 +774,7 @@ static sint8 *draw_test_gradIterInc(void) {
   mu_assert("result of 1 required from draw_gradIterInc when point ((100, 0) for example) is on the second line in the argument list", draw_gradIterInc(p_vertical, &grad_trans_h[1], p_horizontal_right, &grad_trans_h[0], 100, 101, 0)==1);
 
   rtu_destroyATan(p_globals->p_rtu);
+  draw_globalsDestroy(p_globals);
   return 0;
 }
 
@@ -819,7 +831,9 @@ draw_grad *draw_gradReferenceGradPtr(draw_gradReference *p_grad_ref, const uint3
 
 void draw_rowNewSegmentRangePerPix(const draw_scanBrushLog *p_b, const sint32 first_x, const sint32 last_x, const uint32 y, draw_globals *p_globals, draw_gradReference *p_ref) {
   draw_vert *p_center=&p_ref->center;
-  for(uint32 x=first_x; x<last_x; x++) {
+  uint32 render_start=MAX(first_x, 0);
+  sint32 render_after_end=MIN(last_x, (sint32)draw_canvasWidth(&p_globals->canvas));
+  for(sint32 x=render_start; x<render_after_end; x++) {
     draw_vert pt={ .x=x, .y=y };
     uint32 quad_iter=draw_scanBrushLogPt2Iter(p_b, p_ref, &pt);
     uint32 q=(quad_iter & DRAW_PROXIMITY_QUADRANT_MASK) >> DRAW_PROXIMITY_ITER_BITS;
@@ -843,6 +857,7 @@ void draw_rowNewSegmentRangePerPix(const draw_scanBrushLog *p_b, const sint32 fi
 
 bool draw_horizSegmentInit(draw_horizSegment *p_seg, const draw_scanBrushLog *p_b, const sint32 first_x, const sint32 last_x, const uint32 y, draw_globals *p_globals, draw_gradsIf *p_grads_if) {
   if(y>=draw_canvasHeight(&p_globals->canvas)) {
+    //LOG_INFO("y: %u, height: %u", y, draw_canvasHeight(&p_globals->canvas));
     return false;
   }
   p_seg->iter_range=(p_grads_if->p_iter_range_cb)(p_grads_if);
@@ -852,7 +867,8 @@ bool draw_horizSegmentInit(draw_horizSegment *p_seg, const draw_scanBrushLog *p_
   sint32 rightmost=draw_canvasWidth(&p_globals->canvas)-1;
   p_seg->start_x=MAX(first_x, (sint32)0);
   p_seg->end_x=MIN(last_x, rightmost);
-  if(p_seg->start_x>=p_seg->end_x) {
+  if(p_seg->start_x>=p_seg->end_x) { 
+    //LOG_INFO("start_x: %i, end_x: %i", p_seg->start_x, p_seg->end_x);
     return false; //without this we'd be altering p_state (eg setting p_state->p_last to NULL) even when no pixels were processed
   }
   p_seg->p_iter_2_grad=(p_grads_if->p_grad_ptr_cb)(p_grads_if, p_seg->q);
@@ -867,9 +883,12 @@ bool draw_horizSegmentInit(draw_horizSegment *p_seg, const draw_scanBrushLog *p_
   return true;
 }
 
+//bool G_track=false;
+//uint32 G_not_rendered=0;
 void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first_x, const sint32 last_x, const uint32 y, draw_globals *p_globals, draw_gradsIf *p_grads_if) {
   draw_horizSegment seg;
   if(!draw_horizSegmentInit(&seg, p_b, first_x, last_x, y, p_globals, p_grads_if)) {
+    //LOG_INFO("tracking and aborting new segment range on x.");
     return;
   }
   LOG_ASSERT(seg.p_grad->on_x, "invalid grad: %u", seg.iter);
@@ -881,6 +900,7 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   uint32 idx=draw_gradPos2Idx(seg.p_grad, p_b, pos);
   sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
   float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc;
+  //LOG_INFO("onX start x: %i, end_x: %i y: %u", x, seg.end_x,y);
   for(; x<seg.end_x; x++) {
     DO_INFO(p_globals->draw_pixels++);
     //bounds are sorted by x
@@ -932,6 +952,7 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
 void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first_x, const sint32 last_x, const uint32 y, draw_globals *p_globals, draw_gradsIf *p_grads_if) {
   draw_horizSegment seg;
   if(!draw_horizSegmentInit(&seg, p_b, first_x, last_x, y, p_globals, p_grads_if)) {
+    //LOG_INFO("tracking and aborting new segment range on x");
     return;
   }
   LOG_ASSERT(!seg.p_grad->on_x, "invalid grad: %u", seg.iter);
@@ -949,10 +970,10 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
     pos_dec=-pos_dec;
   }
   pos+=p_b->w.half_width; //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_log->w.width)
-  float32 end_pos=-(seg.end_x-seg.start_x)*pos_dec;
   float32 idx=draw_gradPos2Idx(seg.p_grad,p_b, pos);
   sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
   float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*(-pos_dec);
+  //LOG_INFO("onY start x: %i, end_x: %i y: %u", x, seg.end_x, y);
   for(; x<seg.end_x; x++) {
     DO_INFO(p_globals->draw_pixels++);
     
@@ -1216,7 +1237,6 @@ bool draw_headFaster(const draw_vert *p_0, const draw_vert *p_1, draw_onPtCb *p_
   draw_seg seg;
   draw_segInit(&seg, p_0, p_1);
 
-  uint32 result;
   if((seg.x_steps==1 && seg.y_steps==1) || seg.x_steps+seg.y_steps==1) {
     //LOG_INFO("single pixel");
     (*p_callback)(p_0->x, p_0->y, p_arg, p_grad_agg, iter, p_globals);
@@ -1275,6 +1295,7 @@ uint32 draw_unshiftDir(uint32 dir) {
 
 void draw_gradInitFill(draw_grad *p_grad, const draw_strokeWidth *p_w, const draw_globals *p_globals) {
   if(!p_grad->initialised){
+    LOG_ASSERT(p_grad->fd_recorded, "fd not recorded for iter: %", p_grad->idx);
     p_grad->p_landmark=NULL;
     
     //LOG_ASSERT(p_grad->num_bounds>1, "num bounds %u", p_grad->num_bounds);
@@ -1412,6 +1433,7 @@ void draw_recordFD(
   }
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
   p_grad->fd_signed=*p_fd;
+  DO_ASSERT(p_grad->fd_recorded=true);
   return;
 }
 
@@ -1439,14 +1461,17 @@ draw_range draw_vertsTopAndBottomIdxs(const draw_vert verts[], const uint32 num_
 
 draw_range draw_scanFillLogStartScan(draw_scanFillLog *p_f, const draw_vert verts[], const uint32 num_verts) {
   draw_range y_bnds_idxs=draw_vertsTopAndBottomIdxs(verts, num_verts);
-  uint32 min_y_idx=y_bnds_idxs.start, max_y_idx=y_bnds_idxs.end;
-  uint32 start_y=verts[min_y_idx].y-p_f->min_y;
-  uint32 end_y=verts[max_y_idx].y-p_f->min_y;
-
-  LOG_ASSERT(1+end_y<=p_f->size, "memset will overrun array: size %u setting to %u", p_f->size, end_y);
-  uint32 size=(1+end_y-start_y);
-  rtu_memSet(p_f->xs_pairs.p_y_2_starts+start_y, INT_MAX, size);
-  rtu_memSet(p_f->xs_pairs.p_y_2_ends+start_y, INT_MIN, size);
+  //LOG_INFO("y bnds idxs: start: %i end: %i", y_bnds_idxs.start, y_bnds_idxs.end);
+  uint32 min_y_idx=y_bnds_idxs.start;
+  sint32 start_y=MAX(verts[min_y_idx].y-(p_f->min_y+1), 0);
+  
+  if(p_f->size>start_y) {
+    LOG_ASSERT(start_y>=0 && start_y<=p_f->size, "out of range start_y: %i", start_y);
+    rtu_memSet(p_f->xs_pairs.p_y_2_starts+start_y, INT_MAX, p_f->size-start_y);
+    rtu_memSet(p_f->xs_pairs.p_y_2_ends+start_y, INT_MIN, p_f->size-start_y);
+    //rtu_memSet(p_f->xs_pairs.p_y_2_starts, INT_MAX, p_f->size);
+    //rtu_memSet(p_f->xs_pairs.p_y_2_ends, INT_MIN, p_f->size);
+  }
   
   return y_bnds_idxs;
 }
@@ -1467,20 +1492,48 @@ draw_range draw_scanFillLogScan(draw_scanFillLog *p_f, const draw_vert verts[], 
 
 void draw_scanLogFill(draw_scanLog *p_log, const draw_vert verts[], const uint32 num_verts, draw_globals *p_globals, draw_onIterRowCb *p_row_renderer, void *p_iter_info) {
   LOG_ASSERT(num_verts>0, "invalid number of verts: %u", num_verts);
+  if(p_log->f.size==0) {
+    //LOG_INFO("tracking and size==0");
+
+    DO_ASSERT(draw_canvas *p_canvas=&p_globals->canvas);
+    DO_ASSERT(uint32 h=draw_canvasHeight(p_canvas));
+    DO_ASSERT(uint32 w=draw_canvasWidth(p_canvas));
+    LOG_ASSERT((num_verts==3 && (
+				 (verts[0].x<0 && verts[1].x<0 && verts[2].x<0) ||
+				 (verts[0].x>=w && verts[1].x>=w && verts[2].x>=w) ||
+				 (verts[0].y<0 && verts[1].y<0 && verts[2].y<0) ||
+				 (verts[0].y>=h && verts[1].y>=h && verts[2].y>=h)
+				 
+				 )) || (num_verts==4 && (
+				 (verts[0].x<0 && verts[1].x<0 && verts[2].x<0 && verts[3].x<0) ||
+				 (verts[0].x>=w && verts[1].x>=w && verts[2].x>=w && verts[3].x>=w) ||
+				 (verts[0].y<0 && verts[1].y<0 && verts[2].y<0 && verts[3].y<0) ||
+				 (verts[0].y>=h && verts[1].y>=h && verts[2].y>=h && verts[3].y>=h)
+
+							 )), "size should not be zero");
+    return;
+  }
+
   draw_range y_bnds_idxs=draw_scanFillLogScan(&p_log->f, verts, num_verts, p_globals);
   uint32 min_y_idx=y_bnds_idxs.start, max_y_idx=y_bnds_idxs.end;
 
   sint32 start_y=verts[min_y_idx].y-p_log->f.min_y;
   sint32 end_y=verts[max_y_idx].y-p_log->f.min_y;
-  uint32 y=verts[min_y_idx].y;
+  //LOG_INFO("ys: %f, %f, %f", verts[0].y, verts[1].y, verts[2].y);
+  sint32 y=verts[min_y_idx].y-(verts[min_y_idx].y<0);
   uint32 bottommost=(draw_canvasHeight(&p_globals->canvas)-p_log->f.min_y)-1;
+  //LOG_ASSERT(IMPLIES(p_log->f.size==0, end_y<=start_y), "the loop below should be incur any iterations. start_y: %i end_y: %i", start_y, end_y);
+  //LOG_INFO("y: %u min_y_idx: %u, max_y_idx: %u start_y idx: %i, end_y idx: %i", y, min_y_idx, max_y_idx, start_y, end_y);
   for(sint32 y_idx=start_y; y_idx<=end_y; y_idx++) {
     if(y_idx<0 || y_idx>bottommost) {
+      y++;
+      //LOG_INFO("tracking and skipping row. y: %i bottommost %u", y_idx, bottommost);
       continue;
     }
     if(p_log->f.xs_pairs.p_y_2_starts[y_idx]<=p_log->f.xs_pairs.p_y_2_ends[y_idx]) {
       (p_row_renderer)(p_log->p_b, p_log->f.xs_pairs.p_y_2_starts[y_idx], p_log->f.xs_pairs.p_y_2_ends[y_idx]+1, y, p_globals, p_iter_info);
     } else {
+      //LOG_INFO("tracking and bound isn't set.");
       //one of our bounds haven't been set; how is this possible; shouldn't draw_scanFillLogScan have set all bounds we encounter here? TODO
       if(p_log->f.xs_pairs.p_y_2_ends[y_idx]!=INT_MIN) {
 	(p_row_renderer)(p_log->p_b, 
@@ -1547,6 +1600,7 @@ void draw_triNow(
   draw_gradTranslatedInit(draw_gradReferenceTrans(p_grad_ref, q, iter), p_grad, p_center);
   
   draw_vert verts[]={ *p_center, p_grad_ref->last_pt.pt, *p_0 };
+  //LOG_INFO("verts[0]: %f,%f. verts[1]: %f,%f. verts[2]: %f,%f", verts[0].x, verts[0].y, verts[1].x, verts[1].y, verts[2].x, verts[2].y);
   draw_gradReferenceSetIterRange(p_grad_ref, q, iter);
   draw_onIterRowCb *p_row_renderer;
 
@@ -1636,13 +1690,20 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
   if(iter>0) {
     uint32 last_iter=iter-1;
     draw_grad *p_last_grad=&p_grad_agg->p_iter_2_grad[last_iter];
-    draw_gradTranslated *p_last_grad_trans=draw_gradsTrans(p_grad_agg, UINT_MAX, last_iter);
     draw_vert verts[4]={ 
       draw_diff(&p_last_grad->mid, &p_last_grad->half_delta),
       draw_add(&p_last_grad->mid, &p_last_grad->half_delta),
       draw_add(&p_grad->mid, &p_grad->half_delta),
       draw_diff(&p_grad->mid, &p_grad->half_delta),
     };
+    /*
+    if((p_grad->mid.y<30 || p_last_grad->mid.y<30) && (verts[0].y<0 || verts[1].y<0 || verts[2].y<0 || verts[3].y<0)) {
+      G_track=true;
+    }
+    */
+
+    //draw_dot(verts[2].x, verts[2].y, 0xffffffff, p_globals);
+    //draw_dot(verts[3].x, verts[3].y, 0xffffffff, p_globals);
 
     if(p_log->f.highly_acute && draw_scanLogCheckAngle(p_log, p_last_grad, p_grad, p_globals)>PI_OVER_EIGHT && draw_euclideanDistSquared(&p_grad->mid, &p_last_grad->mid)<=1) {
       /* We filter out instance based on distance as where 2
@@ -1659,14 +1720,12 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
        * 
        */
       
-      LOG_INFO("intermediate half blot at %f, %f", p_grad->mid.x, p_grad->mid.y);
       draw_blotContinue(&p_grad->mid, &p_grad->fd_signed, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
-      
+      //LOG_INFO("tracking and blotting.");
       return;
     }
-    
+
     draw_vert ordered_verts[4]={ verts[0], verts[3], verts[2], verts[1] };
-    draw_vert fd_recip=draw_vertRecip(&p_last_grad->fd_signed);
     if(p_last_grad->on_x!=p_grad->on_x && SGN(p_grad->fd_signed.x*p_grad->fd_signed.y)==1) {
       ordered_verts[1]=verts[2];
       ordered_verts[2]=verts[3];
@@ -1735,6 +1794,7 @@ void draw_coreInitGrad(
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
   draw_gradTranslatedFill(draw_gradsTrans(p_grad_agg, UINT_MAX, iter), p_grad, &p_grad->mid);
   draw_coreRender(p_log, p_grad_agg, iter, p_globals);
+
 }
 
 draw_vert draw_bezNext(draw_bez *p_bez, const draw_globals *p_globals) {
@@ -1803,18 +1863,11 @@ void draw_bezInit(draw_bez *p_bez, const float32 step, const draw_vert *p_0, con
   p_bez->c_1.y=draw_plotBezInitC_1(p_0->y, p_1->y, p_2->y, step);
   
   p_bez->f_x_t=f_0;
-  DO_ASSERT(draw_vert real_f_x_t=draw_bezierQuad(p_bez->t, p_bez->p_points, p_globals));
 
   p_bez->fd_times_t.x=draw_plotBezInitFDTimesT(p_bez->fd_0.x, step);
   p_bez->fd_times_t.y=draw_plotBezInitFDTimesT(p_bez->fd_0.y, step);
 
-  draw_vert c_2={.x=2*(p_1->x-p_0->x), .y=2*(p_1->y-p_0->y)};
-  draw_vert c_3={ .x=2*(p_0->x-2*p_1->x+p_2->x), 
-		  .y=2*(p_0->y-2*p_1->y+p_2->y) };
-  draw_vert fd={.x=draw_fd(c_2.x, c_3.x, 0), .y=draw_fd(c_2.y, c_3.y, 0)};
-
   draw_quadStartFDGen(&p_bez->quad, step);
-
 }
 
 sint32 draw_curveIfPlot(
@@ -1844,21 +1897,19 @@ sint32 draw_curveIfPlot(
     (*p_on_iter_cb)(p_log, p_grad_agg, &f_x_t, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
   }
   
-  uint32 cur_dir, last_dir;
+  uint32 cur_dir;
   draw_setDDir(&p_globals->draw_origin, p_curve->p_fd_0_cb(p_curve), &cur_dir, p_globals);
-  last_dir=cur_dir;
 
   sint32 max_y[2]={0, last.y}; //max will be stored in max[1], max[0] won't be read, ever
   uint32 next_iter=row_start_iter+1;
   uint32 max_iter=(p_grad_agg->p_max_iter_cb)(p_grad_agg);
-  uint32 mid=max_iter*0.5;
+  //LOG_INFO("draw_curveIfPlot. max_iter: %u", max_iter);
   
   for(; next_iter<max_iter;) {
     //LOG_INFO("next_iter: %u", next_iter);
     row_start_iter=next_iter++;
     LOG_ASSERT(row_start_iter<=max_iter, "invalid row_start_iter: %u", row_start_iter);
     //LOG_INFO("iter %u", p_log->row_start_iter);
-    last_dir=cur_dir;
     //LOG_INFO("dir: 0x%x fill dir: 0x%x pos: %f, %f", cur_dir, fill_dir, f_x_t.x, f_x_t.y);
 
     f_x_t=p_curve->p_next_cb(p_curve, p_globals);
@@ -1879,7 +1930,6 @@ sint32 draw_curveIfPlot(
   //next bit is not done inside loop as we wish to use p_2 as the final point
   row_start_iter=next_iter;
   LOG_ASSERT(row_start_iter==max_iter, "row start iter: %u max iter %u", row_start_iter, max_iter);
-  last_dir=cur_dir;
 
   f_x_t=p_curve->p_next_cb(p_curve, p_globals);
   if(p_on_iter_cb) {
@@ -1960,7 +2010,7 @@ void draw_proxInit(draw_prox *p_prox, float32 width_f) {
   uint32 width=CEIL32(width_f);
   uint32 end_adjustment=2; //+1 due to dotScanRowRightBnd adding 1 at end and +1 because (uint32)(0.99+1)=((uint32)0.99)+1
   p_prox->span=width+(DRAW_PROXIMITY_ORIGIN_OFFSET<<1)+end_adjustment; //+2 for rounding down down either at start or end
-  float32 c=p_prox->span*0.5;
+  DO_ASSERT(float32 c=p_prox->span*0.5);
 
   //(width+1+2)*0.5+(width>>1)+1<=(width+1+2)
   //(width+1)*0.5+2+(width>>1)<=width+1+2
@@ -1973,13 +2023,12 @@ void draw_proxInit(draw_prox *p_prox, float32 width_f) {
   //width>>1+2-width>>1>=0 or width>>1+2-width>>1+1>=0
   //2 >=0 or width>>1+2-width>>1+1>=0
 
-  draw_vert cen={ .x=c, .y=c };
+  DO_ASSERT(draw_vert cen={ .x=c, .y=c });
   uint32 span_sq=p_prox->span*p_prox->span;
   uint32 size=span_sq*sizeof(uint32);
   p_prox->p_xy_2_nearest_landmark=rtu_memAlloc(size);
   p_prox->p_xy_2_iter=rtu_memAlloc(size);
   if(p_prox->p_xy_2_nearest_landmark && p_prox->p_xy_2_iter) {
-    LOG_INFO("init. p_xy_2_iter: %p", p_prox->p_xy_2_iter);
     rtu_memZero(p_prox->p_xy_2_nearest_landmark, size);
     rtu_memZero(p_prox->p_xy_2_iter, size);
     p_prox->nearest_landmark_size=size;
@@ -2004,16 +2053,17 @@ void draw_proxInit(draw_prox *p_prox, float32 width_f) {
     p_prox->max_dist_squared=0;
     p_prox->rel_origin=0;
   }
+  DO_ASSERT(p_prox->initialised=true);
 }
 
 static sint8 *draw_test_proxInit(void) {
   draw_prox prox;
+  DO_ASSERT(prox.initialised=false);
   draw_proxInit(&prox, 2);
   uint32 offset_0=((sint32)0-(sint32)1)+prox.rel_origin;
   mu_assert("out of range offset_0", offset_0<prox.span);
   uint32 offset_1=((sint32)1-(sint32)1)+prox.rel_origin;
   mu_assert("out of range offset_1", offset_1<prox.span);
-  uint32 offset_2=((sint32)2-(sint32)1)+prox.rel_origin;
   mu_assert("out of range offset_2", offset_0<prox.span);
   mu_assert("2 proxmity values wont' fit in draw_prox.p_xy_2_nearest_landmark element when each is squared", ((DRAW_TRI_THRESH*DRAW_TRI_THRESH*DRAW_PROXIMITY_FIXED_POINT*DRAW_PROXIMITY_FIXED_POINT*2)<(1<<16)));
   draw_proxDestroy(&prox);
@@ -2021,8 +2071,8 @@ static sint8 *draw_test_proxInit(void) {
 }
 
 void draw_proxDestroy(draw_prox *p_prox) {
+  DO_ASSERT(p_prox->initialised=false);
   if(p_prox->p_xy_2_iter) {
-    LOG_INFO("destroy. p_xy_2_iter: %p", p_prox->p_xy_2_iter);
     rtu_memFree(p_prox->p_xy_2_iter);
     p_prox->p_xy_2_iter=NULL;
   }
@@ -2032,14 +2082,19 @@ void draw_proxDestroy(draw_prox *p_prox) {
   }
 }
 
-void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const float32 blur_width, const uint32 col, draw_canvas *p_canvas) {
+void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const float32 blur_width, const uint32 col, draw_canvas *p_canvas, const bool recalc_scaling) {
   p_b->col=col;
   p_b->rgb=col & DRAW_OPACITY_INVERSE_MASK;
   p_b->opacity=col & DRAW_OPACITY_MASK;
-  LOG_INFO("rgb: 0x%x, opacity: 0x%x", p_b->rgb, p_b->opacity);
   p_b->opacity_frac=((float32)(col>>DRAW_OPACITY_SHIFT))/255;
+  DO_ASSERT(p_b->proximity.initialised=false);
 
-  uint32 scaling_idx=draw_canvasSetAndGetScalingIdx(p_canvas, p_b->opacity>>DRAW_OPACITY_SHIFT, blur_width);
+  uint32 scaling_idx;
+  if(recalc_scaling) {
+    scaling_idx=draw_canvasSetAndGetScalingIdx(p_canvas, p_b->opacity>>DRAW_OPACITY_SHIFT, blur_width);
+  } else {
+    scaling_idx=0;
+  }
   p_b->scaling_factor=p_canvas->std_scaling_factors[scaling_idx];
   p_b->mag_factor=p_canvas->std_mag_factors[scaling_idx];
   //LOG_INFO("mag: %u breadth: %f blur: %f", p_b->mag_factor, breadth, blur_width);
@@ -2155,7 +2210,7 @@ float32 draw_vertAngBetween(const draw_vert *p_0, const draw_vert *p_1, const dr
   return MIN(fst_ang, snd_ang);
 }
 
-void draw_renderCoreInit(draw_renderCore *p_render_core, const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2, draw_strokeWidth *p_w, const float32 ang, const uint32 max_iter) {
+void draw_renderCoreInit(draw_renderCore *p_render_core, const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2, draw_strokeWidth *p_w, const float32 ang, const uint32 max_iter, const draw_canvas *p_canvas) {
   p_render_core->spine[0]=*p_0;
   p_render_core->spine[1]=*p_1;
   p_render_core->spine[2]=*p_2;
@@ -2165,20 +2220,30 @@ void draw_renderCoreInit(draw_renderCore *p_render_core, const draw_vert *p_0, c
   p_render_core->ang=ang;
   p_render_core->step=1/(float32)max_iter;
   float32 real_min_y=MIN(MIN(p_0->y, p_1->y), p_2->y)-p_render_core->p_w->half_width;
-  p_render_core->real_min_y=real_min_y; //the field is a uint32
+  real_min_y=MAX(real_min_y,0);
+  p_render_core->min_y=((sint32)real_min_y)-1;  //sometimes due to rounding error we can get a y value less than real_min_y when rendering our bezier. So we give ourselves one more row to play with by making min_y smaller by -1 than it should really need to be
   float32 real_max_y=MAX(MAX(p_0->y, p_1->y), p_2->y)+p_render_core->p_w->half_width;
-  p_render_core->real_max_y=real_max_y;
+  real_max_y=MIN(real_max_y, p_canvas->h-1);
+  if(real_min_y>real_max_y || real_min_y>=p_canvas->h) {
+    //either the min and max are both less than 0 or are both >= canvas.h
+    p_render_core->height=0;
+  } else {
+    p_render_core->height=(2+((sint32)real_max_y)-p_render_core->min_y);
+  }
+  
+  //LOG_ASSERT(p_render_core->real_max_y<100000, "out of range real_max_y. REMOVE");
 }
 
 uint32 draw_renderCoreMaxIter(const draw_renderCore *p_render_core) {
   return p_render_core->max_iter;
 }
 
-uint32 draw_renderHeight(const draw_renderCore *p_render_core, const draw_scanFillLog *p_f) {
-  return (2+p_render_core->real_max_y-p_f->min_y);  //2+ for rounding error fix mentioned above plus accounting for our call to draw_bottomRow below (to handle partial pixel overflow in the y dim)
-}
-
 void draw_renderCoreDraw(draw_renderCore *p_core, draw_scanLog *p_log, draw_grads *p_grad_agg, draw_globals *p_globals) {
+  /*
+  if(p_grad_agg->max_iter==8) {
+    LOG_INFO("checking %p idx 8. %u", &(p_grad_agg->trans.p_iter_2_grad_trans[8]), p_grad_agg->trans.p_iter_2_grad_trans[8].idx);
+  }
+  */
   draw_plotBez(p_core->step, p_core->spine, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_coreInitGrad, p_grad_agg), p_log, &p_grad_agg->grads_if, p_globals);
   LOG_ASSERT(p_grad_agg->max_iter>0, "invalid no of iters");
   draw_coreRender(p_log, p_grad_agg, p_grad_agg->max_iter, p_globals);
@@ -2234,6 +2299,7 @@ draw_grad *draw_gradsGradPtr(draw_grads *p_grad_agg, const uint32 q) {
 void draw_gradsSetMids(draw_grads *p_grad_agg, const draw_vert *p_0) {
   for(uint32 idx=0; idx<=p_grad_agg->max_iter; idx++) {
     DO_ASSERT(p_grad_agg->p_iter_2_grad[idx].idx=idx);
+    DO_ASSERT(p_grad_agg->p_iter_2_grad[idx].fd_recorded=false);
     p_grad_agg->p_iter_2_grad[idx].mid=*p_0;
   }  
 }
@@ -2253,6 +2319,7 @@ void draw_gradTranslatedsInit(draw_gradTranslateds *p_grad_trans, const uint32 m
   DO_ASSERT(p_grad_trans->max_iter=max_iter);
   uint32 grad_trans_size=sizeof(draw_gradTranslated)*(num_iters);
   p_grad_trans->p_iter_2_grad_trans=rtu_memAlloc(grad_trans_size);
+  //LOG_INFO("pointer: %p trans init. max_iter %u", p_grad_trans->p_iter_2_grad_trans, max_iter);
   if(p_grad_trans->p_iter_2_grad_trans) {
     //LOG_INFO("grad translateds malloced from: %p to %p", p_grad_trans->p_iter_2_grad_trans, p_grad_trans->p_iter_2_grad_trans+num_iters);
     p_grad_trans->num_iters=num_iters;
@@ -2264,9 +2331,12 @@ void draw_gradTranslatedsInit(draw_gradTranslateds *p_grad_trans, const uint32 m
 }
 
 void draw_gradTranslatedsReset(draw_gradTranslateds *p_grad_trans) {
-  uint32 iter=0;
+  DO_ASSERT(uint32 iter=0);
   for(uint32 i=0; i<p_grad_trans->num_iters; i++) {
     DO_ASSERT(p_grad_trans->p_iter_2_grad_trans[i].idx=iter);
+    if(i==8 && p_grad_trans->num_iters==8) {
+      LOG_INFO("setting idx for trans (%p). %u", &(p_grad_trans->p_iter_2_grad_trans), p_grad_trans->p_iter_2_grad_trans[i].idx);
+    }
     p_grad_trans->p_iter_2_grad_trans[i].initialised=false;
     DO_ASSERT(iter=iter>=p_grad_trans->max_iter?0:iter+1);
   }
@@ -2284,10 +2354,11 @@ void draw_gradTranslatedsDestroy(draw_gradTranslateds *p_grad_trans) {
 
 void draw_scanFillLogInit(draw_scanFillLog *p_f, const draw_renderCore *p_render_core) {
   p_f->highly_acute=(p_render_core->ang<=PI_OVER_EIGHT);
-  p_f->min_y=p_render_core->real_min_y-1; //sometimes due to rounding error we can get a y value less than real_min_y when rendering our bezier. So we give ourselves one more row to play with by making min_y smaller by -1 than it should really need to be
-  const uint32 rows=draw_renderHeight(p_render_core, p_f);
+  p_f->min_y=p_render_core->min_y;
+  const uint32 rows=draw_renderCoreHeight(p_render_core, p_f);
   p_f->size=rows;
 
+  //LOG_INFO("rows: %u real_max_y: %u. min_y: %i.", rows, p_render_core->real_max_y, p_f->min_y);
   p_f->xs_pairs.p_y_2_starts=rtu_memAlloc(sizeof(uint32)*rows);
   if(p_f->xs_pairs.p_y_2_starts) {
     p_f->xs_pairs.p_y_2_ends=rtu_memAlloc(sizeof(uint32)*rows);
@@ -2326,6 +2397,7 @@ void draw_gradsArrayInit(draw_gradsArray *p_grads_arr, const uint32 num_iters) {
     //LOG_INFO("malloced p_iter_2_grad (size %u) of draw_gradsArray: %p - %p", num_iters, p_grads_arr->p_iter_2_grad, p_grads_arr->p_iter_2_grad+num_iters);    rtu_memZero(p_grads_arr->p_iter_2_grad, iter_2_grad_size);
     for(uint32 idx=0; idx<num_iters; idx++) {
       DO_ASSERT(p_grads_arr->p_iter_2_grad[idx].idx=idx);
+      DO_ASSERT(p_grads_arr->p_iter_2_grad[idx].fd_recorded=false);
       p_grads_arr->p_iter_2_grad[idx].initialised=false;
     }
   } else {
@@ -2357,7 +2429,7 @@ void draw_thickQuad(const draw_vert *p_0, const draw_vert *p_1, const draw_vert 
   }
   float32 ang=draw_vertAngBetween(p_0, p_1, p_2);
   draw_renderCore core;
-  draw_renderCoreInit(&core, p_0, &pt_1, p_2, &p_b->w, ang, draw_calcMaxIter(p_b->w.width, ang));
+  draw_renderCoreInit(&core, p_0, &pt_1, p_2, &p_b->w, ang, draw_calcMaxIter(p_b->w.width, ang), &p_globals->canvas);
   if(core.p_w->half_width==0) {
     return;
   }
@@ -2542,9 +2614,7 @@ void draw_blotInit(draw_blot *p_blot, draw_scanBrushLog *p_b, draw_globals *p_gl
   if(p_b->w.breadth==0) { //ensure a corresponding guard exists in draw_blotDestroy
     return;
   }
-  draw_render render;
   draw_vert pt_0={ .x=half_width, .y=half_width };
-  draw_vert *p_0=&pt_0;
   p_blot->origin=pt_0;
 
   draw_vert pts[3]={ pt_0 };
@@ -2568,7 +2638,7 @@ void draw_blotInit(draw_blot *p_blot, draw_scanBrushLog *p_b, draw_globals *p_gl
     pts[2]=draw_add(&pt_0, &end_delta);
 
     draw_renderCore render_core;
-    draw_renderCoreInit(&render_core, &pts[0], &pts[1], &pts[2], &p_b->w, M_PI_2, max_iter);
+    draw_renderCoreInit(&render_core, &pts[0], &pts[1], &pts[2], &p_b->w, M_PI_2, max_iter, &p_globals->canvas);
 
     draw_grads *p_grad_agg=draw_blotQuadrant2Grads(p_blot, horiz, vert);
     *p_grad_agg=draw_gradsInterface();
@@ -2612,6 +2682,8 @@ void draw_gradDestroy(draw_grad *p_grad) {
   if(p_grad->p_landmark) {
     rtu_memFree(p_grad->p_landmark);
   }
+  DO_ASSERT(p_grad->fd_recorded=false);
+  p_grad->initialised=false;
 }
 
 void draw_blotDestroy(draw_blot *p_blot) {
@@ -2644,7 +2716,7 @@ void draw_blotDestroy(draw_blot *p_blot) {
 
 void draw_blotContinue(const draw_vert *p_0, const draw_vert *p_fd, const float32 breadth, const float32 blur_width, const uint32 col, draw_globals *p_globals) {
   draw_brush brush;
-  draw_brushInit(&brush, col, breadth, blur_width, p_globals);
+  draw_brushInitInternal(&brush, col, breadth, blur_width, p_globals, false);
   draw_stroke stroke;
   draw_strokeInit(&stroke, &brush, p_globals);
   stroke.last_fd=draw_neg(p_fd);
@@ -2722,7 +2794,6 @@ void draw_coordToIterCalcCoord2IterSize(draw_coordToIter *p_c2I, const draw_grad
   LOG_ASSERT(p_grad_agg->p_iter_2_grad[iter].on_x && iter==last_iter+iter_inc && !p_grad_agg->p_iter_2_grad[last_iter].on_x, "draw_grad at %u should be on_x", iter, last_iter);
 
   draw_vert max_y=p_grad_agg->p_iter_2_grad[last_iter].half_delta;
-  float32 max_x=MAX(ABSF(p_grad_agg->p_iter_2_grad[end_iter].half_delta.x), ABSF(p_grad_agg->p_iter_2_grad[0].half_delta.x));
   p_c2I->abs_max_y_x=ABSF(max_y.x);
   p_c2I->max_on_y_x_coord=p_c2I->abs_max_y_x*2+1;
   p_c2I->min_on_y_y_coord=ABSF(max_y.y);
@@ -2787,7 +2858,6 @@ uint32 draw_coordToIterGetIter(const draw_coordToIter *p_c2I, const draw_vert *p
   }  else {
     delta=*p_0;
   }
-  draw_vert pt;
   if((BSGN(delta.x)*BSGN(delta.y))!=-p_c2I->right*p_c2I->down) {
     /*
       Apparently incorrect quadrant. Assume its due to cumulative
@@ -2862,12 +2932,10 @@ draw_iterRange draw_gradReferenceIterRange(draw_gradReference *p_grad_ref) {
 
 void draw_gradReferenceSetIterRange(draw_gradReference *p_grad_ref, const uint32 q, const uint32 iter) {
   draw_iterRangeInit(&p_grad_ref->range, q, iter);
-  draw_iterRange *p_iter_info=&p_grad_ref->range;
 }
 
 void draw_brushInit(draw_brush *p_brush, const uint32 col, const float32 breadth, const float32 blur_width, draw_globals *p_globals) {
-  draw_scanBrushLogInit(&p_brush->b, breadth, blur_width, col, &p_globals->canvas);
-  draw_blotInit(&p_brush->blot, &p_brush->b, p_globals);
+  draw_brushInitInternal(p_brush, col, breadth, blur_width, p_globals, true);
 }
 
 uint32 draw_brushMagFactor(const draw_brush *p_brush) {
@@ -3155,6 +3223,7 @@ void draw_completeQuadrant(
 }
 
 void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_last_fd, draw_vert *p_next_fd, draw_globals *p_globals) {
+#if 1
   draw_canvasMarkDirtyRadius(&p_globals->canvas, p_0, p_stroke->brush.b.w.breadth, p_stroke->brush.b.w.blur_width);
 
   draw_vert neg_last_fd=draw_neg(p_last_fd);
@@ -3275,25 +3344,14 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
       ctrl.x=end.x;
     }
 
-    /*
-    if(G_trace) {
-      LOG_ERROR("ctrl pt arg: start %f,%f. incoming %f, %f end %f,%f. outgoing %f,%f.", start.x, start.y, incoming_fd.x, incoming_fd.y, end.x, end.y, outgoing_fd.x, outgoing_fd.y);
-    }
-    */
-
     draw_vert p_pts[3]={
       start, ctrl, end
     };
-    /*
-    if(G_trace) {
-      LOG_ERROR("pts: %f,%f - %f,%f - %f,%f.", p_pts[0].x, p_pts[0].y, p_pts[1].x, p_pts[1].y, p_pts[2].x, p_pts[2].y);
-    }
-    */
 
     step=rtu_div(1, max_iter, p_globals->p_rtu);
 
     draw_renderCore core;
-    draw_renderCoreInit(&core, &start, &ctrl, &end, &p_stroke->brush.b.w, draw_vertAngBetween(&start, &ctrl, &end), max_iter);
+    draw_renderCoreInit(&core, &start, &ctrl, &end, &p_stroke->brush.b.w, draw_vertAngBetween(&start, &ctrl, &end), max_iter, &p_globals->canvas);
     draw_scanLog log;
     draw_scanLogInit(&log, &core, &p_stroke->brush.b, p_globals);
     draw_gradReference ref=draw_gradReferenceInterface();
@@ -3311,25 +3369,15 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
   }
   uint32 q=cur_quadrant & 3;
   ctrl=draw_determineCtrlPt(&start, &incoming_fd, &terminal_end, p_end_fd);
-  /*
-  if(G_trace) {
-    LOG_ERROR("last ctrl pt arg: start %f,%f. incoming %f, %f end %f,%f. outgoing %f,%f.", start.x, start.y, incoming_fd.x, incoming_fd.y, terminal_end.x, terminal_end.y, p_end_fd->x, p_end_fd->y);
-  }
-  */
   
   draw_vert p_pts[3]={
     start, ctrl, terminal_end
   };
-  /*
-  if(G_trace) {
-    LOG_ERROR("last pts: %f,%f - %f,%f - %f,%f.", p_pts[0].x, p_pts[0].y, p_pts[1].x, p_pts[1].y, p_pts[2].x, p_pts[2].y);
-  }
-  */
   step=rtu_div(1, max_iter, p_globals->p_rtu);
 
   LOG_ASSERT(max_iter==draw_blotQuadrant2Grads(&p_stroke->brush.blot, draw_quadrant2Horiz(q), draw_quadrant2Vert(q))->max_iter, "inconsistent max iters");
   draw_renderCore core;
-  draw_renderCoreInit(&core, &p_pts[0], &p_pts[1], &p_pts[2], &p_stroke->brush.b.w, draw_vertAngBetween(&p_pts[0], &p_pts[1], &p_pts[2]), max_iter);
+  draw_renderCoreInit(&core, &p_pts[0], &p_pts[1], &p_pts[2], &p_stroke->brush.b.w, draw_vertAngBetween(&p_pts[0], &p_pts[1], &p_pts[2]), max_iter, &p_globals->canvas);
   draw_scanLog log;
   draw_scanLogInit(&log, &core, &p_stroke->brush.b, p_globals);
   draw_gradReference ref=draw_gradReferenceInterface();
@@ -3339,6 +3387,7 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
   draw_completeQuadrant(&log, &ref, &p_pts[2], width, p_globals);
   draw_gradReferenceDestroy(&ref);
   draw_scanLogDestroy(&log);
+#endif
 }
 
 void draw_strokeStartCap(draw_stroke *p_stroke, const draw_vert *p_ctrl, const draw_vert *p_end, draw_globals *p_globals) {
@@ -3354,6 +3403,7 @@ void draw_strokeEndCap(draw_stroke *p_stroke, const draw_vert *p_end, draw_vert 
 
 void draw_strokeMoveTo(draw_stroke *p_stroke, const draw_vert *p_start, draw_globals *p_globals) {
   //see tiles/stroke.dot for state transition diagram
+  //LOG_INFO("start pt: %f, %f", p_start->x, p_start->y);
   LOG_ASSERT(p_stroke->state=DRAW_STROKE_RENDERED, "can only move on rendered state");
   draw_canvasWipe(&p_globals->canvas, p_globals);
   draw_strokeContinue(p_stroke, p_start, p_globals);
@@ -3364,6 +3414,7 @@ void draw_strokeQuadTo(draw_stroke *p_stroke, const draw_vert *p_ctrl, const dra
     return;
   }
 
+  //LOG_INFO("end pt: %f, %f", p_end->x, p_end->y);
   float32 scale=draw_brushScaleFactor(&p_stroke->brush);
   draw_vert scaled_ctrl=draw_by(p_ctrl, scale);
   draw_vert scaled_end=draw_by(p_end, scale);

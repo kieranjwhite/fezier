@@ -1,5 +1,5 @@
 /* Copyright 2015 Kieran White.
-   This file is part of fezier.
+   This file is part of Fezier.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -58,7 +58,7 @@
  * proximity values, so must be at most 16bits.
  * ((DRAW_TRI_THRESH*DRAW_PROXIMITY_FIXED_POINT)^2)*2 must be < 1*2^16
  */
-#define DRAW_TRI_THRESH 6
+#define DRAW_TRI_THRESH 0
 //fixed point arithmetic multiplies vals by this value before casting
 #define DRAW_PROXIMITY_FIXED_POINT 16
 #define DRAW_PROXIMITY_BITS 16
@@ -115,7 +115,8 @@ typedef struct {
   draw_vert fd_signed;
   
   draw_landmark *p_landmark; //Will always be NULL unless stroke width < DRAW_TRI_THRESH
-  
+
+  DO_ASSERT(bool fd_recorded);
   bool initialised;
   bool on_x;
 } draw_grad;
@@ -136,7 +137,8 @@ typedef struct {
 #define DRAW_CANVAS_NUM_MAG_FACTORS 5
   uint32 std_mag_factors[DRAW_CANVAS_NUM_MAG_FACTORS];
   float32 std_scaling_factors[DRAW_CANVAS_NUM_MAG_FACTORS]; //each element in this should be the reciprocal of its corresponding element in G_draw_std_mag_factors
-
+  uint32 scaling_idx;
+  
 
   uint32 renderedW; //this should remain constant for a given device (we also change it when user switches to a monitor with a different resolution, but we do so by reinitialising everything - so that doesn't really count)
   uint32 renderedH; //this should remain constant for a given device (same proviso as for renderedW though)
@@ -208,6 +210,7 @@ typedef struct {
 } draw_gradConsts;
 
 typedef struct {
+  DO_ASSERT(uint32 initialised);
   uint32 *p_xy_2_nearest_landmark;
   uint32 *p_xy_2_iter;
   uint32 nearest_landmark_size;
@@ -493,7 +496,7 @@ typedef struct {
   sint32 min_y;
 
   draw_decomposedBounds xs_pairs;
-  uint32 size; //len of xs_pair fields
+  uint32 size; //number of elements in each of the two xs_pair fields
 
   bool highly_acute; //If a curve if very acute then there is the possibility that the angle between two successive draw_grads is sufficiently large at to lead to rendering artifacts. We special case this scenario in draw_coreRender(), checking this flag first.
   float32 last_ang;
@@ -534,8 +537,10 @@ typedef struct {
   float32 ang; //needed for draw_calcMaxIter
   uint32 max_iter;
   float32 step;
-  uint32 real_max_y;
-  uint32 real_min_y;
+  //uint32 real_max_y;
+  //uint32 real_min_y;
+  sint32 min_y;
+  uint32 height;
 } draw_renderCore;   //needed by new renderer
 
 typedef struct {
@@ -885,17 +890,6 @@ inline sint32 draw_gradSideIncSgn4FD(const draw_grad *p_grad, const draw_vert *p
   return SGN(inc);
 }
 
-inline void draw_scanSpanUpdateIter(draw_scanSpan *p_span, const uint32 iter, const uint32 bounds) {
-  sint32 *p_field;
-  if(bounds & DRAW_SCAN_SPAN_ITER_BOUND_START) {
-    p_field=&p_span->iters.start;
-  }
-  if(bounds & DRAW_SCAN_SPAN_ITER_BOUND_END) {
-    p_field=&p_span->iters.end;
-  }
-  *p_field=iter;
-}
-
 inline float32 draw_mCs2X(float32 ma, float32 mb, float32 ca, float32 cb) {
   LOG_ASSERT(mb-ma!=0, "slope diff of 0 %f, %f", mb, ma);
   return (ca-cb)/(mb-ma);
@@ -1017,7 +1011,7 @@ inline void draw_gradTranslatedInit(draw_gradTranslated *p_grad_trans, const dra
 }
 
 inline bool draw_gradTranslatedFill(draw_gradTranslated *p_grad_trans, const draw_grad *p_grad, const draw_vert *p_mid) {
-  LOG_ASSERT(p_grad_trans->idx==p_grad->idx, "draw_grad mismatch: %u, %u", p_grad_trans->idx, p_grad->idx);
+  LOG_ASSERT(p_grad_trans->idx==p_grad->idx, "draw_grad (%p) mismatch: %u, %u size: %u, idx addr: %p",p_grad_trans, p_grad_trans->idx, p_grad->idx, sizeof(draw_gradTranslated), &p_grad_trans->idx);
   LOG_ASSERT(p_grad->initialised, "draw_grad not initialised: %u", p_grad->idx);
   if(!p_grad_trans->initialised) {
     draw_gradTranslatedInit(p_grad_trans, p_grad, p_mid);
@@ -1044,7 +1038,9 @@ inline void draw_dotScanRowLeftBnd(float32 x, float32 y, draw_scanFillLog *p_f, 
   }
   LOG_ASSERT(p_f->xs_pairs.p_y_2_starts, "uninitialised starts array");
   uint32 y_offset=y-p_f->min_y;
+  LOG_ASSERT(y_offset<p_f->size, "out of bounds array assignment / read");
   sint32 x_int=(sint32)x;
+
   p_f->xs_pairs.p_y_2_starts[y_offset]=MIN(p_f->xs_pairs.p_y_2_starts[y_offset], x_int);
 }
 
@@ -1054,6 +1050,7 @@ inline void draw_dotScanRowRightBnd(float32 x, float32 y, draw_scanFillLog *p_f,
   }
   LOG_ASSERT(p_f->xs_pairs.p_y_2_ends, "uninitialised ends array");
   uint32 y_offset=y-p_f->min_y;
+  LOG_ASSERT(y_offset<p_f->size, "out of bounds array assignment / read");
   sint32 x_int=(sint32)x; //+1 so rounding down does cut of the end of a row
   x_int+=x_int!=x;
   p_f->xs_pairs.p_y_2_ends[y_offset]=MAX(p_f->xs_pairs.p_y_2_ends[y_offset], x_int);
@@ -1166,7 +1163,9 @@ inline uint32 draw_proxOffsetIdx(const draw_prox *p_prox, const float32 x_cen, c
 }
 
 inline uint32 draw_proxProximity(const draw_prox *p_prox, const uint32 landmark_row_dist_sq, const sint32 x_delta) {
-  uint32 dist_squared=MIN(landmark_row_dist_sq+(x_delta*x_delta), p_prox->max_dist_squared);
+  uint32 unbounded_dist_sq=landmark_row_dist_sq+(x_delta*x_delta);
+  LOG_ASSERT(p_prox->initialised, "uninitialised draw_prox");
+  uint32 dist_squared=MIN(unbounded_dist_sq, p_prox->max_dist_squared);
   return p_prox->max_dist_squared-dist_squared;
 }
 
@@ -1182,8 +1181,10 @@ inline bool draw_proxLandmarkDistRanker(const draw_prox *p_prox, const uint32 x,
   uint32 offset_idx=y_offset_idx+x;
 
   LOG_ASSERT(offset_idx<p_prox->nearest_landmark_size, "out of range offset: %u, size %u", offset_idx, p_prox->nearest_landmark_size);
-  
+
+  LOG_ASSERT(offset_idx<p_prox->span*p_prox->span, "out of range offset_idx: %u, %u", offset_idx, p_prox->span);
   uint32 *p_element=&p_prox->p_xy_2_nearest_landmark[offset_idx];
+  
   uint32 *p_iter=&p_prox->p_xy_2_iter[offset_idx];
   bool is_near=proximity>DRAW_PROXIMITY_EXTRACT(1, *p_element);
   if(is_near) {
@@ -1298,9 +1299,22 @@ inline void draw_strokeContinue(draw_stroke *p_stroke, const draw_vert *p_start,
   p_stroke->state=DRAW_STROKE_MOVED;
 }
 
+void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const float32 blur_width, const uint32 col, draw_canvas *p_canvas, const bool recalc_scaling);
+void draw_blotInit(draw_blot *p_blot, draw_scanBrushLog *p_b, draw_globals *p_globals);
+inline void draw_brushInitInternal(draw_brush *p_brush, const uint32 col, const float32 breadth, const float32 blur_width, draw_globals *p_globals, const bool recalc_scaling) {
+  draw_scanBrushLogInit(&p_brush->b, breadth, blur_width, col, &p_globals->canvas, recalc_scaling);
+  draw_blotInit(&p_brush->blot, &p_brush->b, p_globals);
+}
+
 float32 draw_scanFillLogCheckAngle(draw_scanFillLog *p_f, const draw_grad *p_last_grad, const draw_grad *p_grad, const draw_globals *p_globals);
 inline float32 draw_scanLogCheckAngle(draw_scanLog *p_log, const draw_grad *p_last_grad, const draw_grad *p_grad, const draw_globals *p_globals) {
   return draw_scanFillLogCheckAngle(&p_log->f, p_last_grad, p_grad, p_globals);
+}
+
+inline uint32 draw_renderCoreHeight(const draw_renderCore *p_render_core, const draw_scanFillLog *p_f) {
+  //sint32 height=(2+p_render_core->real_max_y-p_f->min_y);  //2+ for rounding error fix mentioned above plus accounting for our call to draw_bottomRow below (to handle partial pixel overflow in the y dim)
+  //return MAX(0, height);
+  return p_render_core->height;
 }
 
 bool draw_tail(draw_vert *p_0, draw_vert *p_1, draw_onPtCb *p_on_pt_cb, draw_scanFillLog *p_arg, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals);
@@ -1326,7 +1340,6 @@ void draw_scanLogStartBezEdge(draw_scanLog *p_log, const uint32 iter, const draw
 void draw_scanLogStartLineEdge(draw_scanLog *p_log, const uint32 iter, const draw_vert *p_0, const draw_vert *p_1, const draw_globals *p_globals);
 void draw_scanLogEndEdge(draw_scanLog *p_log);
 
-void draw_blotInit(draw_blot *p_blot, draw_scanBrushLog *p_b, draw_globals *p_globals);
 void draw_blotDestroy(draw_blot *p_blot);
 void draw_blotRender(draw_blot *p_blot, const draw_vert *p_0, const uint32 col, const bool right, const bool down, draw_globals *p_globals);
 void draw_blotRender360(draw_blot *p_blot, const draw_vert *p_0, const uint32 col, draw_globals *p_globals);

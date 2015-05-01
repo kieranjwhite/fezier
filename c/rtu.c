@@ -1,5 +1,5 @@
 /* Copyright 2015 Kieran White.
-   This file is part of fezier.
+   This file is part of Fezier.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -289,7 +289,6 @@ static sint8 *rtu_test_fastATan(void) {
 
   float32 angs[]={0, 0.25, 0.5, 0.75, 1.00, 1.5, 2, 4, 9999};
   float32 answers[]={0, 0.24498, 0.46365, 0.64350, 0.78540, 0.98279, 1.1071, 1.3258, 1.5707};
-  uint32 num_tests=DIM(angs);
   LOG_ASSERT(DIM(angs)==DIM(answers), "incorrect number of answers");
   
   mu_assert("incorrect atan for 0", rtu_similar(rtu_fastATan(angs[0], p_globals), answers[0], fuzz));

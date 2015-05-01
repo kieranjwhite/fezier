@@ -1,5 +1,5 @@
 /* Copyright 2015 Kieran White.
-   This file is part of fezier.
+   This file is part of Fezier.
 
    This program is free software: you can redistribute it and/or modify
    it under the terms of the GNU General Public License as published by
@@ -21,6 +21,10 @@
 #include "../draw.h"
 #include "../../types.h"
 #include <SDL.h>
+
+#define IMAGE_BUF_SCREEN_WIDTH 800
+#define IMAGE_BUF_SCREEN_HEIGHT 1097
+#define IMAGE_BUF_PIX_RATIO -1
 
 void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag);
 

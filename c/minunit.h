@@ -2,7 +2,7 @@
    minunit library (available at
    http://www.jera.com/techinfo/jtns/jtn002.html).
 
-   This file is part of fezier and is based on the minunit
+   This file is part of Fezier and is based on the minunit
    library. This file is dual-licenced as described below:
 
    (1) This program is free software: you can redistribute it and/or

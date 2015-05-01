@@ -4,6 +4,10 @@
 #include "../../types.h"
 #include "../draw.h"
 
+#define X_OFF 0
+#define Y_OFF 0
+#define MAG 1
+
 void wipeAndMove(SDL_Surface *p_surface, draw_stroke *p_stroke, draw_vert *p_pt, draw_globals *p_globals) {
   SDL_PixelFormat *p_pf=p_surface->format;
   uint32 transparent=SDL_MapRGBA(p_pf, 
@@ -12,26 +16,43 @@ void wipeAndMove(SDL_Surface *p_surface, draw_stroke *p_stroke, draw_vert *p_pt,
 			       (0 >> 0x00) & 0xff, 
 			       (0 >> 0x18 ) & 0xff);
   SDL_FillRect(p_surface, NULL, transparent);
+
+  p_pt->x-=X_OFF;
+  p_pt->y-=Y_OFF;
+  p_pt->x*=MAG;
+  p_pt->y*=MAG;
+  
   draw_strokeMoveTo(p_stroke, p_pt, p_globals);
 }
 
-void quadTo(draw_stroke *p_stroke, const draw_vert *p_ctrl, const draw_vert *p_end, draw_globals *p_globals) {
-	draw_strokeQuadTo(p_stroke, p_ctrl, p_end, p_globals);
+void brushInit(draw_brush *p_brush, const uint32 col, const float32 breadth, const float32 blur_width, draw_globals *p_globals) {
+   draw_brushInit(p_brush, col, breadth*MAG, blur_width*MAG, p_globals);
+}
+
+void quadTo(draw_stroke *p_stroke, draw_vert *p_ctrl, draw_vert *p_end, draw_globals *p_globals) {
+  p_ctrl->x-=X_OFF;
+  p_ctrl->y-=Y_OFF;
+  p_ctrl->x*=MAG;
+  p_ctrl->y*=MAG;
+  
+  p_end->x-=X_OFF;
+  p_end->y-=Y_OFF;
+  p_end->x*=MAG;
+  p_end->y*=MAG;
+  
+  draw_strokeQuadTo(p_stroke, p_ctrl, p_end, p_globals);
 #ifdef ALL_CAPS
 	draw_strokeRender(p_stroke, p_globals);
 #endif
 }
 
 void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globals) {
-  uint32 buf_width=p_globals->canvas.w;
-  uint32 buf_height=p_globals->canvas.h;
-
   draw_brush brush;
   draw_stroke stroke;
   
   draw_vert ctrl;
   draw_vert end;
-   draw_brushInit(&brush, (uint32)-65536, 297.0, 291.30627, p_globals);
+   brushInit(&brush, (uint32)-65536, 297.0, 291.30627, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=140.0;
  end.y=981.6953;
@@ -2133,7 +2154,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)-1275068417, 297.0, 291.30627, p_globals);
+ brushInit(&brush, (uint32)-1275068417, 297.0, 291.30627, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=354.375;
  end.y=551.39453;
@@ -2975,7 +2996,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)-16777216, 14.0, 11.360943, p_globals);
+ brushInit(&brush, (uint32)-16777216, 14.0, 11.360943, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=208.125;
  end.y=783.5156;
@@ -4255,7 +4276,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)-2570074, 29.0, 25.632704, p_globals);
+ brushInit(&brush, (uint32)-2570074, 29.0, 25.632704, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=321.25;
  end.y=822.3047;
@@ -6604,7 +6625,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)-16777216, 9.0, 6.8027754, p_globals);
+ brushInit(&brush, (uint32)-16777216, 9.0, 6.8027754, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=364.375;
  end.y=797.4531;
@@ -6668,7 +6689,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)670286685, 54.0, 50.011017, p_globals);
+ brushInit(&brush, (uint32)670286685, 54.0, 50.011017, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=396.875;
  end.y=860.4844;
@@ -6933,13 +6954,13 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)-2046842105, 35.0, 31.444653, p_globals);
+ brushInit(&brush, (uint32)-2046842105, 35.0, 31.444653, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=353.125;
  end.y=727.15234;
  wipeAndMove(p_surface, &stroke, &end, p_globals);
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)721398535, 35.0, 31.444653, p_globals);
+ brushInit(&brush, (uint32)721398535, 35.0, 31.444653, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=350.625;
  end.y=727.7578;
@@ -7121,7 +7142,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)721354752, 35.0, 31.444653, p_globals);
+ brushInit(&brush, (uint32)721354752, 35.0, 31.444653, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=343.125;
  end.y=724.72656;
@@ -7175,7 +7196,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)285147136, 35.0, 31.444653, p_globals);
+ brushInit(&brush, (uint32)285147136, 35.0, 31.444653, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=366.25;
  end.y=710.1836;
@@ -7209,7 +7230,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)284418908, 127.0, 122.155815, p_globals);
+ brushInit(&brush, (uint32)284418908, 127.0, 122.155815, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=372.5;
  end.y=795.03125;
@@ -8264,7 +8285,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)275672686, 8.0, 5.9205585, p_globals);
+ brushInit(&brush, (uint32)275672686, 8.0, 5.9205585, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=336.25;
  end.y=323.51563;
@@ -8926,7 +8947,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)124677742, 57.0, 52.956947, p_globals);
+ brushInit(&brush, (uint32)124677742, 57.0, 52.956947, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=338.75;
  end.y=448.96875;
@@ -9492,7 +9513,7 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
  draw_brushDestroy(&brush);
- draw_brushInit(&brush, (uint32)134195975, 197.0, 191.7168, p_globals);
+ brushInit(&brush, (uint32)134195975, 197.0, 191.7168, p_globals);
  draw_strokeInit(&stroke, &brush, p_globals);
  end.x=86.875;
  end.y=1025.332;
@@ -10848,4 +10869,5 @@ void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globa
  draw_strokeRender(&stroke, p_globals);
  image_buf_commit(p_surface, &p_globals->canvas, draw_brushMagFactor(&brush));
  SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
+ draw_brushDestroy(&brush);
 }
