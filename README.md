@@ -52,15 +52,17 @@ G_p_globals=draw_globalsInit();
 rtu_initFastATan(DRAW_ATAN_DIVISORS, G_p_globals->p_rtu);
 rtu_initFastDiv(DRAW_DIV_LIMIT, G_p_globals->p_rtu);
 
+uint32 w=640;
+uint32 h=480;
+
 /* devicePixelRatio indicates the display's pixel density, larger
  * values indicate a larger DPI. This is used to decide on the optimum
  * rendering quality required for the current display.
  * A value of -1 ensures that scene is rendered at full resolution.
- * 1 is a good value or 150dpi devices, 2 for retina-type displays.
+ * 1 is a good value for 150dpi devices, 2 for retina-type displays.
  * Other positive floating point values can also be provided.
  */
-uint32 w=640;
-uint32 h=480;
+float32 devicePixelRatio=-1;
 uint32 *p_pixels=rtu_memAlloc(w*h);
 if(!p_pixels) {
    printf("malloc failure");
@@ -75,7 +77,6 @@ draw_brush brush;
 
 /* colour is a uint32 in 0xaarrggbb format.
  *
- * breadth would be the brush width if there was no feathering.
  * Total width of the brush is breadth+(feather_width*0.5) since half the feathering
  * is inside the specified breadth, and half is outside the specified breadth.
 draw_brushInit(&brush, colour, breadth, feather_width, G_p_globals);
@@ -120,7 +121,7 @@ canvas / surface. The dirty rect coordinates are inclusive.
 If Fezier was initialised with a devicePixelRatio > 0, then the
 destination coords on your canvas / surface must be calculated by
 multiplying the the x,y coords in the dirty rectangle by the value
-returnd by draw_brushMagFactor(&brush) and the source pixels (still
+returned by draw_brushMagFactor(&brush) and the source pixels (still
 specified by the dirty rectangle) must be scaled by the same value
 during compositing.
 
