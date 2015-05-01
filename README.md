@@ -124,7 +124,7 @@ destination coords on your canvas / surface must be calculated by
 multiplying the the x,y coords in the dirty rectangle by the value
 returned by draw_brushMagFactor(&brush). Consequently if the
 draw_brushMagFactor function returns a number >1, then the copied
-regions must be scaled up by this value.
+regions must be scaled up by this value during compositing.
 
 The dirty recangle returned by the draw_canvasDirty function is reset
 at the start of every draw_strokeMoveTo function call. To allow for
