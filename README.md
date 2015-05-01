@@ -58,7 +58,8 @@ uint32 h=480;
 /* devicePixelRatio indicates the display's pixel density, larger
  * values indicate a larger DPI. This is used to decide on the optimum
  * rendering quality required for the current display.
- * A value of -1 ensures that scene is rendered at full resolution.
+ * A value of -1 disables this optimisation and ensures
+ * that the scene is rendered at full resolution.
  * 1 is a good value for 150dpi devices, 2 for retina-type displays.
  * Other positive floating point values can also be provided.
  */
