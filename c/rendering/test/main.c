@@ -33,10 +33,6 @@ uint32 tests_run=0;
 
 //----------------------------------------------------------
 
-// A set of very useful macros that you will find in most
-// code that I write whether I use them in a program or
-// not.
-
 #define max(a,b) (((a) > (b)) ? (a) : (b))
 #define min(a,b) (((a) < (b)) ? (a) : (b))
 #define abs(a) (((a)<0) ? -(a) : (a))

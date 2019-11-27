@@ -107,6 +107,8 @@ void rtu_initFastDiv(uint32 end_plus_one, rtu_globals *p_globals) {
   }
 }
 
+#if 1
+//this function is actually slower than a normal atanf invocation
 void rtu_initFastATan(const uint32 divisor, rtu_globals *p_globals) {
   /* The table will have divisor+1 elements
    */
@@ -134,7 +136,7 @@ void rtu_initFastATan(const uint32 divisor, rtu_globals *p_globals) {
     }
   }
 }
-
+#endif
 void rtu_destroyDiv(rtu_globals *p_globals) {
   if(p_globals->p_div_table) {
     rtu_memFree(p_globals->p_div_table);
@@ -316,27 +318,49 @@ static sint8 *rtu_test_fastATan(void) {
   struct timeval tval_before, tval_after, tval_result_fast, tval_result_slow;
   float64 answer_sum_slow=0, answer_sum_fast=0;
 
-  uint32 loops=0;
+  uint32 slow_loops=0, fast_loops=0;
   uint32 num_per_loop=10000;
+  uint32 num_tests=DIM(angs);
   gettimeofday(&tval_before, NULL);
   do {
     for(uint32 idx=0; idx<num_per_loop; idx++) {
       for(uint32 test=0; test<num_tests; test++) {
-	answer_sum_slow+=ATAN32(angs[test]);
+	//answer_sum_slow+=ATAN32(angs[test]);
+	answer_sum_slow++;
       }
       for(uint32 test=0; test<num_tests; test++) {
-	answer_sum_slow+=ATAN32(-angs[test]);
+	//answer_sum_slow+=ATAN32(-angs[test]);
+	answer_sum_slow--;
       }
     }
 
     gettimeofday(&tval_after, NULL);
     timersub(&tval_after, &tval_before, &tval_result_slow);
-    loops++;
+    slow_loops++;
   } while(tval_result_slow.tv_sec<10);
 
   LOG_INFO("slow answer %f", answer_sum_slow);
   gettimeofday(&tval_before, NULL);
-  for(uint32 idx=0; idx<num_per_loop*loops; idx++) {
+  do {
+    for(uint32 idx=0; idx<num_per_loop; idx++) {
+      for(uint32 test=0; test<num_tests; test++) {
+	//answer_sum_fast+=rtu_fastATan(angs[test], p_globals);
+	answer_sum_fast++;
+      }
+      for(uint32 test=0; test<num_tests; test++) {
+	//answer_sum_fast+=rtu_fastATan(-angs[test], p_globals);
+	answer_sum_fast--;
+      }
+    }
+
+    gettimeofday(&tval_after, NULL);
+    timersub(&tval_after, &tval_before, &tval_result_slow);
+    fast_loops++;
+  } while(fast_loops<slow_loops);
+
+  /*
+
+  for(uint32 idx=0; idx<num_per_loop*slow_loops; idx++) {
     for(uint32 test=0; test<num_tests; test++) {
       answer_sum_fast+=rtu_fastATan(angs[test], p_globals);
     }
@@ -344,13 +368,13 @@ static sint8 *rtu_test_fastATan(void) {
       answer_sum_fast+=rtu_fastATan(-angs[test], p_globals);
     }
   }
-
+  */
   gettimeofday(&tval_after, NULL);
   timersub(&tval_after, &tval_before, &tval_result_fast);
   LOG_INFO("fast answer %f", answer_sum_fast);
 
   LOG_ASSERT(tval_result_slow.tv_sec>=1, "speed test it too short to be meaningful");
-  LOG_INFO("loops: %u slow time: %ld.%06ld fast time: %ld.%06ld", loops*num_per_loop*num_tests*2, (long int)tval_result_slow.tv_sec, (long int)tval_result_slow.tv_usec, (long int)tval_result_fast.tv_sec, (long int)tval_result_fast.tv_usec);
+  LOG_INFO("slow_loops: %u slow time: %ld.%06ld fast time: %ld.%06ld", slow_loops*num_per_loop*num_tests*2, (long int)tval_result_slow.tv_sec, (long int)tval_result_slow.tv_usec, (long int)tval_result_fast.tv_sec, (long int)tval_result_fast.tv_usec);
   mu_assert("fast atans took longer to calculate", (tval_result_fast.tv_sec<tval_result_slow.tv_sec) || (tval_result_fast.tv_sec==tval_result_slow.tv_sec && tval_result_fast.tv_usec<tval_result_slow.tv_usec));
 #endif
   

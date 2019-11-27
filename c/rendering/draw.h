@@ -261,9 +261,9 @@ typedef struct {
 typedef struct draw_gradsIf draw_gradsIf;
 
 typedef uint32 (draw_onGradsIfMaxIter) (draw_gradsIf *);
-				       typedef draw_grad *(draw_onGradsIfGradPtr) (draw_gradsIf *, uint32 q);
+typedef draw_grad *(draw_onGradsIfGradPtr) (draw_gradsIf *, uint32 q);
 typedef draw_iterRange (draw_onGradsIfIterRange) (draw_gradsIf *);
-						 typedef draw_gradTranslated *(draw_onGradsIfTranslated) (draw_gradsIf *, const uint32 q, const uint32 iter);
+typedef draw_gradTranslated *(draw_onGradsIfTranslated) (draw_gradsIf *, const uint32 q, const uint32 iter);
 
 				       struct draw_gradsIf {
 					 draw_onGradsIfMaxIter * p_max_iter_cb;

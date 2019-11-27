@@ -4,9 +4,9 @@
 #include "../../types.h"
 #include "../draw.h"
 
-#define X_OFF 0
-#define Y_OFF 0
-#define MAG 1
+#define X_OFF 400
+#define Y_OFF 400
+#define MAG 8
 
 void wipeAndMove(SDL_Surface *p_surface, draw_stroke *p_stroke, draw_vert *p_pt, draw_globals *p_globals) {
   SDL_PixelFormat *p_pf=p_surface->format;
