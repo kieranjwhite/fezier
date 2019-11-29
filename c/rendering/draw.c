@@ -1549,32 +1549,6 @@ void draw_scanLogFill(draw_scanLog *p_log, const draw_vert verts[], const uint32
   }
 }
 
-void draw_smallTriNow(
-		      draw_scanLog *p_log, 
-		      draw_gradReference *p_grad_ref,
-		      const draw_vert *p_0,
-		      uint32 quad_iter,
-		      draw_globals *p_globals
-		      ) {
-  uint32 q=(quad_iter & DRAW_PROXIMITY_QUADRANT_MASK) >> DRAW_PROXIMITY_ITER_BITS;
-  uint32 iter=(quad_iter & DRAW_PROXIMITY_ITER_MASK);
-  
-  draw_grad *p_iter_2_grad=draw_gradReferenceGradPtr(p_grad_ref, q);
-  draw_vert *p_center=&p_grad_ref->center;
-  draw_grad *p_grad=&p_iter_2_grad[iter];
-  draw_gradTranslatedInit(draw_gradReferenceTrans(p_grad_ref, q, iter), p_grad, p_center);
-  
-  draw_vert verts[]={ *p_center, p_grad_ref->last_pt.pt, *p_0 };
-
-  draw_onIterRowCb *p_row_renderer=DRAW_ON_ITER_ROW_CB(draw_rowNewSegmentRangePerPix,
-						       p_grad_ref);
-  
-  draw_scanLogFill(p_log, verts, 3, p_globals, p_row_renderer, &p_grad_ref->grads_if);
-    
-  p_grad_ref->last_iter=iter;
-  draw_gradReferenceSetLastPt(p_grad_ref, p_0);
-}
-
 void draw_triNow(		       
 	      draw_scanLog *p_log, 
 	      draw_gradReference *p_grad_ref,
@@ -1999,7 +1973,6 @@ void draw_proxInit(draw_prox *p_prox, float32 width_f) {
   p_prox->p_xy_2_iter=rtu_memAlloc(size);
   if(p_prox->p_xy_2_iter) {
     rtu_memZero(p_prox->p_xy_2_iter, size);
-    p_prox->nearest_landmark_size=size;
     p_prox->rel_origin=(width>>1)+DRAW_PROXIMITY_ORIGIN_OFFSET;
     DO_ASSERT(0<p_prox->span?draw_proxOffset(p_prox, ((sint32)cen.y)+1, ((sint32)c)-((width>>1)+end_adjustment)):0);
     DO_ASSERT(0<p_prox->span?draw_proxOffset(p_prox, ((sint32)cen.y)+1, ((sint32)c)-((width>>1)+end_adjustment)):0);

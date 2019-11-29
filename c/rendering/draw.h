@@ -83,21 +83,6 @@ typedef struct {
 } draw_vertNullable; //the only reason this struct exists is so that I can define a NULL draw_vert and not be reliant on a pointer to an external, possibly transient (i.e. on the heap) draw_vert instance.
 
 typedef struct {
-  draw_vert end; //vertex at end of draw_grad, if y>0, if y==0 then we look at the x value
-  
-  //DO_ASSERT(bool reified);
-
-  draw_vertNullable cached;
-  uint32 cached_q;
-} draw_landmark;
-
-typedef struct {
-  draw_landmark *p_cur;
-  draw_landmark *p_last;
-  draw_landmark *p_first;
-} draw_landmarkSequence;
-
-typedef struct {
   DO_ASSERT(uint32 idx); //iter of this grad and its index within draw_scanLog.p_iter_2_grad
 
   float32 default_pos_inc; //how much pos increases for every change of +1 in x where draw_grad.on_x is true or y othersize
@@ -218,7 +203,6 @@ typedef struct {
 typedef struct {
   DO_ASSERT(uint32 initialised);
   uint32 *p_xy_2_iter;
-  uint32 nearest_landmark_size;
   //draw_vert cen;
   uint32 span;
   uint32 rel_origin;
