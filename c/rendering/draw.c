@@ -823,32 +823,6 @@ draw_grad *draw_gradReferenceGradPtr(draw_gradReference *p_grad_ref, const uint3
   return draw_coordToIterGradPtr(&p_grad_ref->p_coord_2_iters[draw_quadrant2CoordToIterIdx(q)]);
 }
 
-void draw_rowNewSegmentRangePerPix(const draw_scanBrushLog *p_b, const sint32 first_x, const sint32 last_x, const uint32 y, draw_globals *p_globals, draw_gradReference *p_ref) {
-  draw_vert *p_center=&p_ref->center;
-  uint32 render_start=MAX(first_x, 0);
-  sint32 render_after_end=MIN(last_x, (sint32)draw_canvasWidth(&p_globals->canvas));
-  for(sint32 x=render_start; x<render_after_end; x++) {
-    draw_vert pt={ .x=x, .y=y };
-    uint32 quad_iter=draw_scanBrushLogPt2Iter(p_b, p_ref, &pt);
-    uint32 q=(quad_iter & DRAW_PROXIMITY_QUADRANT_MASK) >> DRAW_PROXIMITY_ITER_BITS;
-    LOG_ASSERT(q<=3, "out of range q: %u",q);
-    uint32 iter=(quad_iter & DRAW_PROXIMITY_ITER_MASK);
-    LOG_ASSERT(iter<=p_ref->max_iter, "out of range iter: %u, max: %u", iter, p_ref->max_iter);
-
-    draw_grad *p_iter_2_grad=draw_gradReferenceGradPtr(p_ref, q);
-    draw_grad *p_grad=&p_iter_2_grad[iter];
-    draw_gradTranslated *p_trans=draw_gradReferenceTrans(p_ref, q, iter);
-    draw_gradTranslatedInit(p_trans, p_grad, p_center);
-    
-    draw_gradReferenceSetIterRange(p_ref, q, iter);
-    if(p_grad->on_x) {
-      draw_rowNewSegmentRangeOnX(p_b, x, x+1, y, p_globals, &p_ref->grads_if);
-    } else {
-      draw_rowNewSegmentRangeOnY(p_b, x, x+1, y, p_globals, &p_ref->grads_if);
-    }
-  }
-}
-
 bool draw_horizSegmentInit(draw_horizSegment *p_seg, const draw_scanBrushLog *p_b, const sint32 first_x, const sint32 last_x, const uint32 y, draw_globals *p_globals, draw_gradsIf *p_grads_if) {
   if(y>=draw_canvasHeight(&p_globals->canvas)) {
     //LOG_INFO("y: %u, height: %u", y, draw_canvasHeight(&p_globals->canvas));
