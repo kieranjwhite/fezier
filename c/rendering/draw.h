@@ -201,14 +201,6 @@ typedef struct {
 } draw_gradConsts;
 
 typedef struct {
-  DO_ASSERT(uint32 initialised);
-  //draw_vert cen;
-  uint32 span;
-  uint32 rel_origin;
-  uint32 max_dist_squared;
-} draw_prox;
-
-typedef struct {
   float32 scaling_factor; // 1>=scaling_factor>0, smaller on high dpi screens and larger, blurrier brushes. canvas width and height and brush blur_width and breadth are multiplied by this amount for scaling optimisation
   uint32 mag_factor; //reciprocal of scaling_factor
   uint32 col;
@@ -217,7 +209,6 @@ typedef struct {
   float32 opacity_frac; // 1/(col >> DRAW_OPACITY_SHIFT)
   draw_strokeWidth w;
   draw_gradConsts grad_consts;
-  draw_prox proximity;
 } draw_scanBrushLog; //fields here don't change if the brush doesn't
 
  typedef struct {
@@ -1138,37 +1129,9 @@ inline draw_gradTranslated *draw_gradsTrans(draw_grads *p_grad_agg, const uint32
   return &p_grad_agg->trans.p_iter_2_grad_trans[iter];
 }
 
-inline uint32 draw_proxOffset(const draw_prox *p_prox, const float32 cen, const sint32 coord) {
-  sint32 offset=(((cen<(sint32)cen)+coord-((sint32)cen))+(sint32)p_prox->rel_origin);
-  LOG_ASSERT(offset>=0, "offset is an array idx and must not be negative: span %u, offset %i, cen %f, coord %i, origin %u", p_prox->span, offset, cen, coord, p_prox->rel_origin);
-  LOG_ASSERT(offset<p_prox->span, "out of range offset: span %u, offset %i, cen %f, coord %i, origin %u", p_prox->span, offset, cen, coord, p_prox->rel_origin);
-  return (uint32)offset;
-}
-
-inline uint32 draw_proxOffsetIdx(const draw_prox *p_prox, const float32 x_cen, const sint32 x, const uint32 y_offset_idx) {
-  uint32 x_offset_idx=draw_proxOffset(p_prox, x_cen, x);
-  return y_offset_idx+x_offset_idx;
-}
-
-inline uint32 draw_insertProximityVal(const uint32 old_nearest, const uint32 is_nearest, const uint32 val) {
-  return ((old_nearest << DRAW_PROXIMITY_SHIFT(is_nearest)) | (val<<DRAW_PROXIMITY_SHIFT(!is_nearest)));
-}
-
-inline uint32 draw_proxRowOffset(const draw_prox *p_prox, const draw_vert *p_center, const sint32 y) {
-  return draw_proxOffset(p_prox, p_center->y, y)*p_prox->span;
-}
-
-inline uint32 draw_scanBrushLogRowOffset(const draw_scanBrushLog *p_b, const draw_vert *p_center, const sint32 y) {
-  return draw_proxRowOffset(&p_b->proximity, p_center, y);
-}
-
 inline float32 draw_scanBrushLogRelativise(const draw_scanBrushLog *p_b, float32 brush_center, uint32 coord) {
   float32 relative=((float32)coord)-(brush_center-p_b->w.half_width);
   return relative;
-}
-
-inline uint32 draw_proxHalfSpan(const draw_prox *p_prox, const uint32 width, const bool long_half) {
-  return (width>>1)+1+long_half;
 }
 
 inline uint32 draw_dirtyNumRects(draw_globals *p_globals) {
@@ -1329,7 +1292,6 @@ void draw_bezInit(draw_bez *p_bez, const float32 step, const draw_vert *p_0, con
 void draw_gradDestroy(draw_grad *p_grad);
 sint32 draw_gradReferenceVert(const draw_gradReference *p_grad_ref);
 draw_grad *draw_gradsGradPtr(draw_grads *p_grad_agg, const uint32 q);
-void draw_proxDestroy(draw_prox *p_prox);
 void draw_vertNullableInit(draw_vertNullable *p_vertInstPtr, const draw_vert *p_0);
 void draw_blotContinue(const draw_vert *p_0, const draw_vert *p_fd, const float32 breadth, const float32 blur_width, const uint32 col, draw_globals *p_globals);
 

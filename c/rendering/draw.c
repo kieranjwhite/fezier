@@ -162,16 +162,10 @@ extern inline void draw_gradReferenceSetLastPt(draw_gradReference *p_grad_ref, c
 extern inline void draw_vertNullableSetPt(draw_vertNullable *p_inst, const draw_vert *p_0);
 extern inline draw_gradTranslated *draw_gradReferenceTrans(draw_gradReference *p_grad_ref, const uint32 q, const uint32 iter);
 extern inline draw_gradTranslated *draw_gradsTrans(draw_grads *p_grad_agg, const uint32 q, const uint32 iter);
-extern inline uint32 draw_proxOffset(const draw_prox *p_prox, const float32 cen, const sint32 coord);
-extern inline uint32 draw_proxRowOffset(const draw_prox *p_prox, const draw_vert *p_center, const sint32 y);
-extern inline uint32 draw_scanBrushLogRowOffset(const draw_scanBrushLog *p_b, const draw_vert *p_center, const sint32 y);
-extern inline uint32 draw_proxOffsetIdx(const draw_prox *p_prox, const float32 x_cen, const sint32 x, const uint32 y_offset_idx);
 extern inline float32 draw_scanBrushLogRelativise(const draw_scanBrushLog *p_b, float32 brush_center, uint32 coord);
-extern inline uint32 draw_insertProximityVal(const uint32 old_nearest, const uint32 is_nearest, const uint32 val);
 extern inline uint32 draw_gradReferenceQuadrant(const draw_gradReference *p_grad_ref);
 extern inline uint32 draw_blotNumCoord2Iters(const draw_blot *p_blot);
 extern inline uint32 draw_quadrant2CoordToIterIdx(const uint32 q);
-extern inline uint32 draw_proxHalfSpan(const draw_prox *p_prox, const uint32 width, const bool long_half);
 extern inline uint32 draw_extantDirtyNumRects(draw_globals *p_globals) ;
 extern inline uint32 draw_extantDirtyTop(draw_globals *p_globals, const uint32 idx);
 extern inline uint32 draw_extantDirtyBottom(draw_globals *p_globals, const uint32 idx);
@@ -1917,59 +1911,11 @@ void draw_gradsDestroy(draw_grads *p_grad_agg) {
   p_grad_agg->max_iter=0;
 }
 
-void draw_proxInit(draw_prox *p_prox, float32 width_f) {
-  uint32 width=CEIL32(width_f);
-  uint32 end_adjustment=2; //+1 due to dotScanRowRightBnd adding 1 at end and +1 because (uint32)(0.99+1)=((uint32)0.99)+1
-  p_prox->span=width+(DRAW_PROXIMITY_ORIGIN_OFFSET<<1)+end_adjustment; //+2 for rounding down down either at start or end
-  DO_ASSERT(float32 c=p_prox->span*0.5);
-
-  //(width+1+2)*0.5+(width>>1)+1<=(width+1+2)
-  //(width+1)*0.5+2+(width>>1)<=width+1+2
-  //(width+1)*0.5+(width>>1)<=width+1
-  //width>>1+width>>1<=width+1 and width>>1+1+(width>>1)<=width-1
-  //width-1<width+1 and width<=width-1
-
-  //(width>>1)+1-(width+1+2)*0.5>=0
-  //width>>1+2-(width+1)*0.5>=0
-  //width>>1+2-width>>1>=0 or width>>1+2-width>>1+1>=0
-  //2 >=0 or width>>1+2-width>>1+1>=0
-
-  DO_ASSERT(draw_vert cen={ .x=c, .y=c });
-  uint32 span_sq=p_prox->span*p_prox->span;
-  uint32 size=span_sq*sizeof(uint32);
-  p_prox->rel_origin=(width>>1)+DRAW_PROXIMITY_ORIGIN_OFFSET;
-  DO_ASSERT(0<p_prox->span?draw_proxOffset(p_prox, ((sint32)cen.y)+1, ((sint32)c)-((width>>1)+end_adjustment)):0);
-  DO_ASSERT(0<p_prox->span?draw_proxOffset(p_prox, ((sint32)cen.y)+1, ((sint32)c)-((width>>1)+end_adjustment)):0);
-  DO_ASSERT(p_prox->span-1>=0?draw_proxOffset(p_prox, ((sint32)cen.x), ((sint32)c)+1-(width>>1)):0);
-  DO_ASSERT(p_prox->span-1>=0?draw_proxOffset(p_prox, ((sint32)cen.y), ((sint32)c)+1-(width>>1)):0);
-  uint32 half_span=draw_proxHalfSpan(p_prox, width, true);
-  p_prox->max_dist_squared=(half_span*half_span*DRAW_PROXIMITY_FIXED_POINT*DRAW_PROXIMITY_FIXED_POINT)<<1;
-  DO_ASSERT(p_prox->initialised=true);
-}
-
-static sint8 *draw_test_proxInit(void) {
-  draw_prox prox;
-  DO_ASSERT(prox.initialised=false);
-  draw_proxInit(&prox, 2);
-  uint32 offset_0=((sint32)0-(sint32)1)+prox.rel_origin;
-  mu_assert("out of range offset_0", offset_0<prox.span);
-  uint32 offset_1=((sint32)1-(sint32)1)+prox.rel_origin;
-  mu_assert("out of range offset_1", offset_1<prox.span);
-  mu_assert("out of range offset_2", offset_0<prox.span);
-  draw_proxDestroy(&prox);
-  return 0;
-}
-
-void draw_proxDestroy(draw_prox *p_prox) {
-  DO_ASSERT(p_prox->initialised=false);
-}
-
 void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const float32 blur_width, const uint32 col, draw_canvas *p_canvas, const bool recalc_scaling) {
   p_b->col=col;
   p_b->rgb=col & DRAW_OPACITY_INVERSE_MASK;
   p_b->opacity=col & DRAW_OPACITY_MASK;
   p_b->opacity_frac=((float32)(col>>DRAW_OPACITY_SHIFT))/255;
-  DO_ASSERT(p_b->proximity.initialised=false);
 
   uint32 scaling_idx;
   if(recalc_scaling) {
@@ -3320,7 +3266,6 @@ void draw_rectIntReify(draw_rectInt *p_orig) {
 }
 
 sint8 *draw_test(void) {
-  mu_run_test(draw_test_proxInit);
   mu_run_test(draw_test_blotBBoxDims);
   mu_run_test(draw_test_findFirstIter4Row);
   mu_run_test(draw_test_gradIterInc);
