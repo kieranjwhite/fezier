@@ -165,10 +165,7 @@ extern inline draw_gradTranslated *draw_gradsTrans(draw_grads *p_grad_agg, const
 extern inline uint32 draw_proxOffset(const draw_prox *p_prox, const float32 cen, const sint32 coord);
 extern inline uint32 draw_proxRowOffset(const draw_prox *p_prox, const draw_vert *p_center, const sint32 y);
 extern inline uint32 draw_scanBrushLogRowOffset(const draw_scanBrushLog *p_b, const draw_vert *p_center, const sint32 y);
-extern inline uint32 draw_proxProximity(const draw_prox *p_prox, const uint32 landmark_row_dist_sq, const sint32 x_delta);
 extern inline uint32 draw_proxOffsetIdx(const draw_prox *p_prox, const float32 x_cen, const sint32 x, const uint32 y_offset_idx);
-extern inline bool draw_scanBrushLogIsClosest(const draw_scanBrushLog *p_b, const float32 x_cen, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta);
-extern inline bool draw_proxIsClosest(const draw_prox *p_prox, const float32 x_cen, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta);
 extern inline float32 draw_scanBrushLogRelativise(const draw_scanBrushLog *p_b, float32 brush_center, uint32 coord);
 extern inline uint32 draw_insertProximityVal(const uint32 old_nearest, const uint32 is_nearest, const uint32 val);
 extern inline uint32 draw_gradReferenceQuadrant(const draw_gradReference *p_grad_ref);

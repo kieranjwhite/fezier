@@ -1173,28 +1173,8 @@ inline uint32 draw_proxOffsetIdx(const draw_prox *p_prox, const float32 x_cen, c
   return y_offset_idx+x_offset_idx;
 }
 
-inline uint32 draw_proxProximity(const draw_prox *p_prox, const uint32 landmark_row_dist_sq, const sint32 x_delta) {
-  uint32 unbounded_dist_sq=landmark_row_dist_sq+(x_delta*x_delta);
-  LOG_ASSERT(p_prox->initialised, "uninitialised draw_prox");
-  uint32 dist_squared=MIN(unbounded_dist_sq, p_prox->max_dist_squared);
-  return p_prox->max_dist_squared-dist_squared;
-}
-
 inline uint32 draw_insertProximityVal(const uint32 old_nearest, const uint32 is_nearest, const uint32 val) {
   return ((old_nearest << DRAW_PROXIMITY_SHIFT(is_nearest)) | (val<<DRAW_PROXIMITY_SHIFT(!is_nearest)));
-}
-
-inline bool draw_proxIsClosest(const draw_prox *p_prox, const float32 x_cen, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta) {
-  LOG_ASSERT(p_prox->p_xy_2_nearest_landmark!=NULL, "nearest_landmark_proximity array not declared");
-
-  uint32 proximity=draw_proxProximity(p_prox, landmark_row_dist_sq, x_delta);
-  uint32 offset_idx=draw_proxOffsetIdx(p_prox, x_cen, x, y_offset_idx);
-
-  return proximity>DRAW_PROXIMITY_EXTRACT(1, p_prox->p_xy_2_nearest_landmark[offset_idx]);
-}
-
-inline bool draw_scanBrushLogIsClosest(const draw_scanBrushLog *p_b, const float32 x_cen, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta) {
-  return draw_proxIsClosest(&p_b->proximity, x_cen, x, y_offset_idx, landmark_row_dist_sq, x_delta);
 }
 
 inline uint32 draw_proxRowOffset(const draw_prox *p_prox, const draw_vert *p_center, const sint32 y) {
