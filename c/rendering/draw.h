@@ -202,7 +202,6 @@ typedef struct {
 
 typedef struct {
   DO_ASSERT(uint32 initialised);
-  uint32 *p_xy_2_iter;
   //draw_vert cen;
   uint32 span;
   uint32 rel_origin;

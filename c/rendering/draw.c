@@ -1937,21 +1937,13 @@ void draw_proxInit(draw_prox *p_prox, float32 width_f) {
   DO_ASSERT(draw_vert cen={ .x=c, .y=c });
   uint32 span_sq=p_prox->span*p_prox->span;
   uint32 size=span_sq*sizeof(uint32);
-  p_prox->p_xy_2_iter=rtu_memAlloc(size);
-  if(p_prox->p_xy_2_iter) {
-    rtu_memZero(p_prox->p_xy_2_iter, size);
-    p_prox->rel_origin=(width>>1)+DRAW_PROXIMITY_ORIGIN_OFFSET;
-    DO_ASSERT(0<p_prox->span?draw_proxOffset(p_prox, ((sint32)cen.y)+1, ((sint32)c)-((width>>1)+end_adjustment)):0);
-    DO_ASSERT(0<p_prox->span?draw_proxOffset(p_prox, ((sint32)cen.y)+1, ((sint32)c)-((width>>1)+end_adjustment)):0);
-    DO_ASSERT(p_prox->span-1>=0?draw_proxOffset(p_prox, ((sint32)cen.x), ((sint32)c)+1-(width>>1)):0);
-    DO_ASSERT(p_prox->span-1>=0?draw_proxOffset(p_prox, ((sint32)cen.y), ((sint32)c)+1-(width>>1)):0);
-    uint32 half_span=draw_proxHalfSpan(p_prox, width, true);
-    p_prox->max_dist_squared=(half_span*half_span*DRAW_PROXIMITY_FIXED_POINT*DRAW_PROXIMITY_FIXED_POINT)<<1;
-  } else {
-    LOG_ASSERT(p_prox->max_dist_squared<=DRAW_PROXIMITY_MASK, "out of range max_dist_squared: %u", p_prox->max_dist_squared);
-    p_prox->max_dist_squared=0;
-    p_prox->rel_origin=0;
-  }
+  p_prox->rel_origin=(width>>1)+DRAW_PROXIMITY_ORIGIN_OFFSET;
+  DO_ASSERT(0<p_prox->span?draw_proxOffset(p_prox, ((sint32)cen.y)+1, ((sint32)c)-((width>>1)+end_adjustment)):0);
+  DO_ASSERT(0<p_prox->span?draw_proxOffset(p_prox, ((sint32)cen.y)+1, ((sint32)c)-((width>>1)+end_adjustment)):0);
+  DO_ASSERT(p_prox->span-1>=0?draw_proxOffset(p_prox, ((sint32)cen.x), ((sint32)c)+1-(width>>1)):0);
+  DO_ASSERT(p_prox->span-1>=0?draw_proxOffset(p_prox, ((sint32)cen.y), ((sint32)c)+1-(width>>1)):0);
+  uint32 half_span=draw_proxHalfSpan(p_prox, width, true);
+  p_prox->max_dist_squared=(half_span*half_span*DRAW_PROXIMITY_FIXED_POINT*DRAW_PROXIMITY_FIXED_POINT)<<1;
   DO_ASSERT(p_prox->initialised=true);
 }
 
@@ -1970,10 +1962,6 @@ static sint8 *draw_test_proxInit(void) {
 
 void draw_proxDestroy(draw_prox *p_prox) {
   DO_ASSERT(p_prox->initialised=false);
-  if(p_prox->p_xy_2_iter) {
-    rtu_memFree(p_prox->p_xy_2_iter);
-    p_prox->p_xy_2_iter=NULL;
-  }
 }
 
 void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const float32 blur_width, const uint32 col, draw_canvas *p_canvas, const bool recalc_scaling) {
