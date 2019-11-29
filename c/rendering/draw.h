@@ -53,11 +53,6 @@
 #define DRAW_DIV_LIMIT 0x1000
 #define DRAW_ATAN_DIVISORS 8
 
-/* DRAW_TRI_THRESH is max brush width that we can store proximity values for in 
- * draw_prox.p_xy_2_nearest_landmark. Each element in that array stores 2 
- * proximity values, so must be at most 16bits.
- * ((DRAW_TRI_THRESH*DRAW_PROXIMITY_FIXED_POINT)^2)*2 must be < 1*2^16
- */
 //fixed point arithmetic multiplies vals by this value before casting
 #define DRAW_PROXIMITY_FIXED_POINT 16
 #define DRAW_PROXIMITY_BITS 16
@@ -222,7 +217,6 @@ typedef struct {
 
 typedef struct {
   DO_ASSERT(uint32 initialised);
-  uint32 *p_xy_2_nearest_landmark;
   uint32 *p_xy_2_iter;
   uint32 nearest_landmark_size;
   //draw_vert cen;

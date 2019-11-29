@@ -1996,10 +1996,8 @@ void draw_proxInit(draw_prox *p_prox, float32 width_f) {
   DO_ASSERT(draw_vert cen={ .x=c, .y=c });
   uint32 span_sq=p_prox->span*p_prox->span;
   uint32 size=span_sq*sizeof(uint32);
-  p_prox->p_xy_2_nearest_landmark=rtu_memAlloc(size);
   p_prox->p_xy_2_iter=rtu_memAlloc(size);
-  if(p_prox->p_xy_2_nearest_landmark && p_prox->p_xy_2_iter) {
-    rtu_memZero(p_prox->p_xy_2_nearest_landmark, size);
+  if(p_prox->p_xy_2_iter) {
     rtu_memZero(p_prox->p_xy_2_iter, size);
     p_prox->nearest_landmark_size=size;
     p_prox->rel_origin=(width>>1)+DRAW_PROXIMITY_ORIGIN_OFFSET;
@@ -2010,15 +2008,6 @@ void draw_proxInit(draw_prox *p_prox, float32 width_f) {
     uint32 half_span=draw_proxHalfSpan(p_prox, width, true);
     p_prox->max_dist_squared=(half_span*half_span*DRAW_PROXIMITY_FIXED_POINT*DRAW_PROXIMITY_FIXED_POINT)<<1;
   } else {
-    if(p_prox->p_xy_2_nearest_landmark) {
-      rtu_memFree(p_prox->p_xy_2_nearest_landmark);
-      p_prox->p_xy_2_nearest_landmark=NULL;
-    }
-    if(p_prox->p_xy_2_iter) {
-      LOG_INFO("init (freeing due to failed malloc of p_xy_2_nearest_landmark). p_xy_2_iter: %p", p_prox->p_xy_2_iter);
-      rtu_memFree(p_prox->p_xy_2_iter);
-      p_prox->p_xy_2_iter=NULL;
-    }
     LOG_ASSERT(p_prox->max_dist_squared<=DRAW_PROXIMITY_MASK, "out of range max_dist_squared: %u", p_prox->max_dist_squared);
     p_prox->max_dist_squared=0;
     p_prox->rel_origin=0;
@@ -2044,10 +2033,6 @@ void draw_proxDestroy(draw_prox *p_prox) {
   if(p_prox->p_xy_2_iter) {
     rtu_memFree(p_prox->p_xy_2_iter);
     p_prox->p_xy_2_iter=NULL;
-  }
-  if(p_prox->p_xy_2_nearest_landmark) {
-    rtu_memFree(p_prox->p_xy_2_nearest_landmark);
-    p_prox->p_xy_2_nearest_landmark=NULL;
   }
 }
 
