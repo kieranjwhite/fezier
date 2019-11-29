@@ -97,7 +97,7 @@ extern inline float32 draw_euclideanDist(const draw_vert *p_0, const draw_vert *
 extern inline uint32 draw_mem_inc_idx(const uint32 idx);
 extern inline uint32 draw_largerPowerOf2(uint32 start, uint32 target);
 extern inline uint32 draw_scanLogPos2ConstIdx(const draw_scanBrushLog *p_b, const float32 pos);
-extern inline uint32 draw_gradPos2Idx(const draw_grad *p_grad, const draw_scanBrushLog *p_b, const float32 pos);
+extern inline uint32 draw_pos2Idx(const draw_scanBrushLog *p_b, const float32 pos);
 extern inline uint32 draw_gradIdx2ConstIdx(const draw_grad *p_grad, const uint32 grad_idx);
 extern inline float32 draw_gradRowSideM(const draw_grad *p_grad, const draw_gradTranslated *p_grad_trans, const float32 y);
 extern inline float32 draw_gradNewSideM(const draw_grad *p_grad, const draw_gradTranslated *p_grad_trans, const float32 x, const float32 y);
@@ -163,13 +163,10 @@ extern inline void draw_vertNullableSetPt(draw_vertNullable *p_inst, const draw_
 extern inline draw_gradTranslated *draw_gradReferenceTrans(draw_gradReference *p_grad_ref, const uint32 q, const uint32 iter);
 extern inline draw_gradTranslated *draw_gradsTrans(draw_grads *p_grad_agg, const uint32 q, const uint32 iter);
 extern inline uint32 draw_proxOffset(const draw_prox *p_prox, const float32 cen, const sint32 coord);
-extern inline bool draw_proxLandmarkDistRanker(const draw_prox *p_prox, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta, const uint32 q, const uint32 iter);
 extern inline uint32 draw_proxRowOffset(const draw_prox *p_prox, const draw_vert *p_center, const sint32 y);
-extern inline bool draw_scanBrushLogLandmarkDistRanker(const draw_scanBrushLog *p_b, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta, const uint32 q, const uint32 iter);
 extern inline uint32 draw_scanBrushLogRowOffset(const draw_scanBrushLog *p_b, const draw_vert *p_center, const sint32 y);
 extern inline uint32 draw_proxProximity(const draw_prox *p_prox, const uint32 landmark_row_dist_sq, const sint32 x_delta);
 extern inline uint32 draw_proxOffsetIdx(const draw_prox *p_prox, const float32 x_cen, const sint32 x, const uint32 y_offset_idx);
-extern inline sint32 draw_landmarkXDelta(draw_landmark *p_landmark, const uint32 x, const uint32 q, const draw_vert *p_mid);
 extern inline bool draw_scanBrushLogIsClosest(const draw_scanBrushLog *p_b, const float32 x_cen, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta);
 extern inline bool draw_proxIsClosest(const draw_prox *p_prox, const float32 x_cen, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta);
 extern inline float32 draw_scanBrushLogRelativise(const draw_scanBrushLog *p_b, float32 brush_center, uint32 coord);
@@ -894,10 +891,10 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   LOG_ASSERT(seg.p_grad->on_x, "invalid grad: %u", seg.iter);
   sint32 x=seg.start_x;
   float32 bound_delta=(y-seg.p_anchor->y)*seg.p_grad->slope_recip;
-  float32 cen_x=(seg.p_anchor->x+bound_delta);
+  float32 cen_x=(seg.p_anchor->x+bound_delta); //27/12/19 unsure why this is called cen_x -- it's just the starting x, probably evals to first_x and seg.start_x where first_x>=0
 
   float32 pos=(x-cen_x)*seg.p_grad->default_pos_inc+p_b->w.half_width;  //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_b->w.width)
-  uint32 idx=draw_gradPos2Idx(seg.p_grad, p_b, pos); //0 if feathered in the first half, 1 if not feathered, 2 if feathered in the 2nd half
+  uint32 idx=draw_pos2Idx(p_b, pos); //0 if feathered in the first half, 1 if not feathered, 2 if feathered in the 2nd half
   sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
   float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc;
   //LOG_INFO("onX start x: %i, end_x: %i y: %u", x, seg.end_x,y);
@@ -939,7 +936,7 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   }
   opacity=p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2]));
   for(; x<seg.end_x; x++) {
-    LOG_ASSERT(draw_gradPos2Idx(seg.p_grad, p_b, pos)==2, "idx should be 2");
+    LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
     DO_INFO(p_globals->draw_pixels++);
     //bounds are sorted by x
     
@@ -970,7 +967,7 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
     pos_dec=-pos_dec;
   }
   pos+=p_b->w.half_width; //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_log->w.width)
-  float32 idx=draw_gradPos2Idx(seg.p_grad,p_b, pos);
+  float32 idx=draw_pos2Idx(p_b, pos);
   sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
   float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*(-pos_dec);
   //LOG_INFO("onY start x: %i, end_x: %i y: %u", x, seg.end_x, y);
@@ -1003,7 +1000,7 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
   }
   opacity=p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2]));
   for(; x<seg.end_x; x++) {
-    LOG_ASSERT(draw_gradPos2Idx(seg.p_grad, p_b, pos)==2, "idx should be 2");
+    LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
     DO_INFO(p_globals->draw_pixels++);
   
     draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity*p_b->opacity_frac))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
@@ -1040,8 +1037,6 @@ void draw_segInit(draw_seg *p_seg, const draw_vert *p_0, const draw_vert *p_1) {
   p_seg->x_steps=rtu_abs((((sint32)p_1->x)-neg_x1_adjustment)-(((sint32)p_0->x)-neg_x0_adjustment));
   p_seg->y_steps=rtu_abs((((sint32)p_1->y)-neg_y1_adjustment)-(((sint32)p_0->y)-neg_y0_adjustment));
 
-  p_seg->x_dom=ABSF(p_seg->pt_diff.x)>ABSF(p_seg->pt_diff.y);
-
   p_seg->p_0=p_0;
   p_seg->p_1=p_1;
 }
@@ -1075,7 +1070,7 @@ uint32 draw_segFastRenderX(const draw_seg *p_seg, draw_onPtCb *p_callback, draw_
 }
 
 uint32 draw_segSlowRenderX(const draw_seg *p_seg, draw_onPtCb *p_callback, draw_scanFillLog *p_arg, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
-  if(p_seg->y_steps==0) {
+  if(p_seg->x_steps==0) {
     return DRAW_INNER_SEG_X_DOM;
   }
   //LOG_INFO("whoah. slow path 1");
@@ -1195,23 +1190,29 @@ uint32 draw_segSlowRenderY(const draw_seg *p_seg, draw_onPtCb *p_callback, draw_
 }
 
 uint32 draw_innerSeg(const draw_vert *p_0, const draw_vert *p_1, draw_onPtCb *p_callback, draw_scanFillLog *p_arg, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
-  if(!p_callback) {
-    return DRAW_INNER_SEG_NULL;
-  }
-  
   draw_seg seg;
   draw_segInit(&seg, p_0, p_1);
 
   uint32 result;
   if((seg.x_steps==1 && seg.y_steps==1) || seg.x_steps+seg.y_steps==1) {
     //LOG_INFO("single pixel each way");
-    result=seg.x_dom;
+    if(ABSF(seg.pt_diff.x)>ABSF(seg.pt_diff.y)) {
+      result=DRAW_INNER_SEG_X_DOM;
+    } else { 
+      result=DRAW_INNER_SEG_Y_DOM;
+    }
   } else if(seg.x_dist==0 && seg.y_dist==0) {
     //LOG_INFO("no pixel either way");
     return DRAW_INNER_SEG_NULL;
   } else if(ABSF(seg.pt_diff.y)<seg.x_steps) {
+    if(!p_callback) {
+      return DRAW_INNER_SEG_X_DOM;
+    }
     result=draw_segFastRenderX(&seg, p_callback, p_arg, p_grad_agg, iter, p_globals);
   } else if(ABSF(seg.pt_diff.x)<=seg.y_steps) {
+    if(!p_callback) {
+      return DRAW_INNER_SEG_Y_DOM;
+    }
     //y_steps used above instead of ay_dist as it tells us how many rows need to be plotted here.
     //Calculating o_inc below based on ay_dist will result in overlay large increments to x,
     //screwing up antialiasing.
@@ -1220,8 +1221,14 @@ uint32 draw_innerSeg(const draw_vert *p_0, const draw_vert *p_1, draw_onPtCb *p_
     result=draw_segFastRenderY(&seg, p_callback, p_arg, p_grad_agg, iter, p_globals);
   } else {
     if(ABSF(seg.pt_diff.x)*seg.x_steps>ABSF(seg.pt_diff.y)*seg.y_steps) {
+      if(!p_callback) {
+	return DRAW_INNER_SEG_X_DOM;
+      }
       result=draw_segSlowRenderX(&seg, p_callback, p_arg, p_grad_agg, iter, p_globals);
     } else {
+      if(!p_callback) {
+	return DRAW_INNER_SEG_Y_DOM;
+      }
       result=draw_segSlowRenderY(&seg, p_callback, p_arg, p_grad_agg, iter, p_globals);
     }
   }
@@ -1268,25 +1275,20 @@ bool draw_headFaster(const draw_vert *p_0, const draw_vert *p_1, draw_onPtCb *p_
     return true;
   }
 }
-
+/*
 bool draw_tail(draw_vert *p_0, draw_vert *p_1, draw_onPtCb * p_callback, draw_scanFillLog *p_arg, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
-  if(p_callback) {
-    uint32 result=draw_innerSeg(p_0, p_1, p_callback, p_arg, p_grad_agg, iter, p_globals);
-    (*p_callback)(p_1->x, p_1->y, p_arg, p_grad_agg, iter, p_globals);
-    return result!=DRAW_INNER_SEG_NULL;
-  }
-  return DRAW_INNER_SEG_NULL;
+uint32 result=draw_innerSeg(p_0, p_1, p_callback, p_arg, p_grad_agg, iter, p_globals);
+(*p_callback)(p_1->x, p_1->y, p_arg, p_grad_agg, iter, p_globals);
+return result!=DRAW_INNER_SEG_NULL;
 }
-
+*/
 bool draw_tailFaster(const draw_vert *p_0, const draw_vert *p_1, draw_onPtCb * p_callback, draw_scanFillLog *p_arg, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
   //p_callbacks should be defined as in draw_tail
+  uint32 result=draw_innerSeg(p_0, p_1, p_callback, p_arg, p_grad_agg, iter, p_globals);
   if(p_callback) {
-    uint32 result=draw_innerSeg(p_0, p_1, p_callback, p_arg, p_grad_agg, iter, p_globals);
     (*p_callback)(p_1->x, p_1->y, p_arg, p_grad_agg, iter, p_globals);
-    return result!=DRAW_INNER_SEG_NULL;
-  } else {
-    return DRAW_INNER_SEG_NULL;
   }
+  return result!=DRAW_INNER_SEG_NULL;
 }
 
 uint32 draw_unshiftDir(uint32 dir) {
@@ -1296,7 +1298,6 @@ uint32 draw_unshiftDir(uint32 dir) {
 void draw_gradInitFill(draw_grad *p_grad, const draw_strokeWidth *p_w, const draw_globals *p_globals) {
   if(!p_grad->initialised){
     LOG_ASSERT(p_grad->fd_recorded, "fd not recorded for iter: %", p_grad->idx);
-    p_grad->p_landmark=NULL;
     
     //LOG_ASSERT(p_grad->num_bounds>1, "num bounds %u", p_grad->num_bounds);
     draw_vert *p_fd_signed=&p_grad->fd_signed;
@@ -1616,25 +1617,6 @@ void draw_triNow(
   draw_gradReferenceSetLastPt(p_grad_ref, p_0);
 }
 
-void draw_smallTriFill(
-		       draw_scanLog *p_log, 
-		       draw_gradReference *p_ref,
-		       const draw_vert *p_0, 
-		       draw_globals *p_globals
-		   ) {
-  uint32 last_iter=p_ref->last_iter;
-  //uint32 iter=draw_gradReferenceIter(p_ref, p_0);
-  uint32 quad_iter=draw_scanBrushLogPt2Iter(p_log->p_b, p_ref, p_0);
-  if(last_iter==UINT_MAX) {
-    p_ref->last_iter=quad_iter;
-    draw_gradReferenceSetLastPt(p_ref, p_0);
-  }
-  if(quad_iter==last_iter || last_iter==UINT_MAX) {
-    return;
-  }
-  draw_smallTriNow(p_log, p_ref, p_0, quad_iter, p_globals);
-}
-
 void draw_triFill(
 		       draw_scanLog *p_log, 
 		       draw_gradReference *p_grad_ref,
@@ -1658,25 +1640,15 @@ void draw_triFill(
   draw_triNow(p_log, p_grad_ref, p_0, quad_iter, p_globals);
 }
 
-void draw_smallTriFillCb(
-		       draw_scanLog *p_log, 
-		       draw_gradReference *p_grad_ref,
-		       const draw_vert *p_0, 
-		       const draw_vert *p_fd, 
-		       const uint32 other_iter,
-		       draw_globals *p_globals
-		   ) {
-  draw_smallTriFill(p_log, p_grad_ref, p_0, p_globals);
-}
-
 void draw_triFillCb(
-		       draw_scanLog *p_log, 
-		       draw_gradReference *p_grad_ref,
-		       const draw_vert *p_0, 
-		       const draw_vert *p_fd, 
-		       const uint32 other_iter,
-		       draw_globals *p_globals
-		   ) {
+                      draw_scanLog *p_log,
+                      draw_gradReference *p_grad_ref,
+		      const draw_vert *p_last,
+                      const draw_vert *p_0,
+                      const draw_vert *p_fd,
+                      const uint32 other_iter,
+                      draw_globals *p_globals
+                  ) {
   draw_triFill(p_log, p_grad_ref, p_0, p_globals);
 }
 
@@ -1748,28 +1720,10 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
   draw_gradMarkDirty(p_grad, draw_gradsTrans(p_grad_agg, UINT_MAX, iter), &p_globals->canvas);
 }
 
-void draw_initSmallGrad(
-		       draw_scanLog *p_log, 
-		       draw_grads *p_grad_agg,
-		       const draw_vert *p_0, 
-		       const draw_vert *p_fd, 
-		       const uint32 iter,
-		       draw_globals *p_globals
-		       ) {
-  draw_recordFD(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
-  draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
-  //p_grad->mid=*p_0;
-  draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
-  p_grad->p_landmark=rtu_memAlloc(sizeof(draw_landmark));
-  LOG_ASSERT(p_grad->p_landmark, "landmark not malloced");
-  if(p_grad->p_landmark) {
-    draw_landmarkInit(p_grad->p_landmark, p_0);
-  }
-}
-
 void draw_initGrad(
 		       draw_scanLog *p_log, 
 		       draw_grads *p_grad_agg,
+		       const draw_vert *p_last,
 		       const draw_vert *p_0, 
 		       const draw_vert *p_fd, 
 		       const uint32 iter,
@@ -1777,19 +1731,34 @@ void draw_initGrad(
 		       ) {
   draw_recordFD(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
+  if(p_last!=NULL) {
+    p_grad->last_mid=*p_last;
+
+    /* get the 2 unit vectors corresponding to the slope of the 2 segments
+     * add them
+     * the -ve reciprocal is the slope of the desired bisector
+     * the point connecting the 2 segments is the point on the bisector
+     */
+    
+    p_grad->has_last_mid=true;
+  } else {
+    p_grad->has_last_mid=false;
+  }
   p_grad->mid=*p_0;
+  
   draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
 }
 
 void draw_coreInitGrad(
 		       draw_scanLog *p_log, 
 		       draw_grads *p_grad_agg,
+		       const draw_vert *p_prev, 
 		       const draw_vert *p_0, 
 		       const draw_vert *p_fd, 
 		       const uint32 iter,
 		       draw_globals *p_globals
 		       ) {
-  draw_initGrad(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
+  draw_initGrad(p_log, p_grad_agg, p_prev, p_0, p_fd, iter, p_globals);
   LOG_ASSERT(p_globals->null_vert.x==0 && p_globals->null_vert.y==0, "someone altered the null vert");
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
   draw_gradTranslatedFill(draw_gradsTrans(p_grad_agg, UINT_MAX, iter), p_grad, &p_grad->mid);
@@ -1894,7 +1863,8 @@ sint32 draw_curveIfPlot(
 
   //LOG_INFO("start iter %u", p_log->row_start_iter);
   if(p_on_iter_cb) {
-    (*p_on_iter_cb)(p_log, p_grad_agg, &f_x_t, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
+    (*p_on_iter_cb)(p_log, p_grad_agg, NULL, &f_x_t, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
+    //(*p_on_iter_cb)(p_log, p_grad_agg, NULL, &f_x_t, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
   }
   
   uint32 cur_dir;
@@ -1914,7 +1884,7 @@ sint32 draw_curveIfPlot(
 
     f_x_t=p_curve->p_next_cb(p_curve, p_globals);
     if(p_on_iter_cb) {
-      (*p_on_iter_cb)(p_log, p_grad_agg, &f_x_t, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
+      (*p_on_iter_cb)(p_log, p_grad_agg, &last, &f_x_t, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
     }
 
     if((*p_on_seg_cb)(&last, &f_x_t, p_on_pt_cb, &p_log->f, p_grad_agg, row_start_iter, p_globals)) {
@@ -1933,7 +1903,7 @@ sint32 draw_curveIfPlot(
 
   f_x_t=p_curve->p_next_cb(p_curve, p_globals);
   if(p_on_iter_cb) {
-    (*p_on_iter_cb)(p_log, p_grad_agg, p_2, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
+    (*p_on_iter_cb)(p_log, p_grad_agg, &last, p_2, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
   }
   if((*p_on_seg_cb)(&last, p_2, p_on_pt_cb, &p_log->f, p_grad_agg, row_start_iter, p_globals)) {
     draw_setDir(&last, p_2, &cur_dir, p_globals);    
@@ -1946,10 +1916,12 @@ sint32 draw_curveIfPlot(
   return max_y[1];
 }
 
-sint32 draw_plotBez(const float32 step, draw_vert *p_pts, 
+sint32 draw_plotBez(const float32 step,
+		    draw_vert *p_pts, 
 		    draw_onPtCb *p_on_pt_cb, 
 		    draw_onIterCb *p_on_iter_cb, 
-		    draw_scanLog *p_log, draw_gradsIf *p_grad_agg,
+		    draw_scanLog *p_log,
+		    draw_gradsIf *p_grad_agg,
 		    draw_globals *p_globals) {
   draw_bez curve=draw_bezInterface();
   LOG_ASSERT((void *)&curve==(void *)&curve.curve_if, "first field in draw_bez instance must be draw_curveIf");
@@ -1974,6 +1946,7 @@ void draw_solveSimultaneousRect(float32 ma, float32 ca_lt, float32 ca_rb, float3
   p_pts->rb.y=draw_mXC2Y(ma, p_pts->rb.x, ca_rb);
 }
 
+/*
 sint32 draw_tailArr(const uint32 start_iter, const float32 step, draw_vert *p_pts, 
 		    draw_onPtCb * p_on_pt_cb, 
 		    draw_onIterCb *p_on_iter_cb,
@@ -1984,7 +1957,7 @@ sint32 draw_tailArr(const uint32 start_iter, const float32 step, draw_vert *p_pt
   draw_tail(&p_pts[0], &p_pts[1], p_on_pt_cb, &p_log->f, p_grad_agg, start_iter, p_globals);
   return MAX(p_pts[0].y, p_pts[1].y);
 }
-
+*/
 void draw_strokeWidthInit(draw_strokeWidth *p_w, const float32 breadth, const float32 blur_width) {
   p_w->breadth=breadth;
   float32 width=draw_savedWidth2RenderedWidth(breadth, blur_width);
@@ -2065,7 +2038,6 @@ static sint8 *draw_test_proxInit(void) {
   uint32 offset_1=((sint32)1-(sint32)1)+prox.rel_origin;
   mu_assert("out of range offset_1", offset_1<prox.span);
   mu_assert("out of range offset_2", offset_0<prox.span);
-  mu_assert("2 proxmity values wont' fit in draw_prox.p_xy_2_nearest_landmark element when each is squared", ((DRAW_TRI_THRESH*DRAW_TRI_THRESH*DRAW_PROXIMITY_FIXED_POINT*DRAW_PROXIMITY_FIXED_POINT*2)<(1<<16)));
   draw_proxDestroy(&prox);
   return 0;
 }
@@ -2100,9 +2072,6 @@ void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const 
   //LOG_INFO("mag: %u breadth: %f blur: %f", p_b->mag_factor, breadth, blur_width);
   draw_strokeWidthInit(&p_b->w, breadth*p_b->scaling_factor, blur_width*p_b->scaling_factor);
   
-  if(p_b->w.width<DRAW_TRI_THRESH) {
-    draw_proxInit(&p_b->proximity, p_b->w.width);
-  }
   draw_gradConstsInit(&p_b->grad_consts, &p_b->w);
 }
 
@@ -2160,9 +2129,6 @@ uint32 draw_scanBrushLogPt2Iter(const draw_scanBrushLog *p_b, draw_gradReference
 }
 
 void draw_scanBrushLogDestroy(draw_scanBrushLog *p_b) {
-  if(p_b->w.width<DRAW_TRI_THRESH) {
-    draw_proxDestroy(&p_b->proximity);
-  }    
 }
 
 void draw_scanFillLogDestroy(draw_scanFillLog *p_f) {
@@ -2495,117 +2461,6 @@ uint32 draw_blotMaxIter(const draw_blot *p_blot) {
   return LOG32(draw_savedWidth2RenderedWidth(p_blot->breadth, p_blot->blur_width))*5+3;
 }
 
-void draw_landmarkInit(draw_landmark *p_landmark, const draw_vert *p_corner) {
-  //DO_ASSERT(p_landmark->reified=false);
-  p_landmark->end=*p_corner;
-  draw_vertNullableInit(&p_landmark->cached, NULL);
-}
-
-draw_vert draw_landmarkPt(draw_landmark *p_landmark, const uint32 q, const draw_vert *p_mid) {
-
-  if(p_landmark->cached.p_pt!=NULL && p_landmark->cached_q==q) {
-    return p_landmark->cached.pt;
-  }
-  
-  draw_vert rel=draw_diff(&p_landmark->end, p_mid);
-  sint32 horiz=-draw_quadrant2Horiz(q);
-  sint32 vert=draw_quadrant2Vert(q);
-  draw_vert *p_result;
-  sint32 x_sgn=SGN(rel.x);
-  sint32 y_sgn=SGN(rel.y);
-  if((horiz==x_sgn || x_sgn==0) && (vert==y_sgn || y_sgn==0)) {
-    draw_vert opposite_end=draw_diff(p_mid, &rel);
-    p_result=&opposite_end;
-  } else {
-    LOG_ASSERT(horiz!=x_sgn && vert!=y_sgn, "if we're not in the right quadrant we must be in the opposite quadrant");
-    p_result=&p_landmark->end;
-  }
-  draw_vertNullableSetPt(&p_landmark->cached, p_result);
-  p_landmark->cached_q=q;
-  return *p_result;
-}
-
-static sint8 *draw_test_landmarkPt(void) {
-  draw_vert mid={
-    .x=1,
-    .y=1
-  };
-  const float32 fuzz=0.1;
-
-  draw_landmark top_left={
-    .end={
-      .x=0,
-      .y=0
-    },
-    .cached={
-      .p_pt=NULL
-    }
-  };
-  
-  draw_landmark bottom_right={
-    .end={
-      .x=2,
-      .y=2
-    },
-    .cached={
-      .p_pt=NULL
-    }
-  };
-
-  draw_vert pt=draw_landmarkPt(&bottom_right, 0, &mid);
-  mu_assert("wrong end point for q 0: 2,2", draw_vertSim(&pt, &top_left.end, fuzz));
-  draw_vertNullableSetPt(&bottom_right.cached, NULL); //clear cache
-  pt=draw_landmarkPt(&bottom_right, 2, &mid);
-  mu_assert("wrong end point for q 2: 2,2", draw_vertSim(&pt, &bottom_right.end, fuzz));
-
-
-  draw_landmark bottom_left={
-    .end={
-      .x=0,
-      .y=2
-    },
-    .cached={
-      .p_pt=NULL
-    }
-  };
-
-  draw_landmark top_right={
-    .end={
-      .x=2,
-      .y=0
-    },
-    .cached={
-      .p_pt=NULL
-    }
-  };
-
-  pt=draw_landmarkPt(&top_right, 1, &mid);
-  mu_assert("wrong end point for q 1: 2,0", draw_vertSim(&pt, &bottom_left.end, fuzz));
-  draw_vertNullableSetPt(&top_right.cached, NULL); //clear cache
-  pt=draw_landmarkPt(&top_right, 3, &mid);
-  mu_assert("wrong end point for q 3: 2,0", draw_vertSim(&pt, &top_right.end, fuzz));
-  return 0;
-}
-
-void draw_scanBrushLogGradDistRanker(draw_scanBrushLog *p_b, const draw_grad *p_grad, const uint32 q, const uint32 iter) {
-  LOG_ASSERT(p_grad->p_landmark, "no landmark");
-  draw_landmark *p_landmark=p_grad->p_landmark;
-  uint32 span=p_b->proximity.span;
-  sint32 start_x_delta=draw_landmarkXDelta(p_landmark, 0, q, &p_grad->mid);
-  uint32 y_offset_idx=0;
-  for(sint32 y=0; y<span; y++) {
-    //uint32 y_offset_idx=draw_proxOffset(&p_b->proximity, p_b->proximity.cen.y, y)*p_b->proximity.span;//draw_scanBrushLogRowOffset(p_b, &p_grad->mid, y);
-    sint32 landmark_row_dist=(y-(draw_landmarkPt(p_landmark, q, &p_grad->mid).y+DRAW_PROXIMITY_ORIGIN_OFFSET))*DRAW_PROXIMITY_FIXED_POINT;
-    uint32 landmark_row_dist_sq=landmark_row_dist*landmark_row_dist;
-    sint32 x_delta=start_x_delta;
-    for(uint32 x=0; x<span; x_delta-=DRAW_PROXIMITY_FIXED_POINT, x++) {
-      //+1 is to account for us added 1 pixel boundary to top and left of span array
-      draw_scanBrushLogLandmarkDistRanker(p_b, x, y_offset_idx, landmark_row_dist_sq, x_delta, q, iter);
-    }
-    y_offset_idx+=span;
-  }
-}
-
 void draw_blotInit(draw_blot *p_blot, draw_scanBrushLog *p_b, draw_globals *p_globals) {
   p_blot->breadth=p_b->w.breadth; //setting this before guard ensures subsequent blotRenders to do anything
   p_blot->blur_width=p_b->w.blur_width;
@@ -2647,7 +2502,7 @@ void draw_blotInit(draw_blot *p_blot, draw_scanBrushLog *p_b, draw_globals *p_gl
 
     draw_scanLog log;
     draw_scanLogInit(&log, &render_core, p_b, p_globals);
-    draw_plotBez(render_core.step, pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(p_b->w.width<DRAW_TRI_THRESH?draw_initSmallGrad:draw_initGrad, p_grad_agg), &log, &p_grad_agg->grads_if, p_globals);
+    draw_plotBez(render_core.step, pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_initGrad, p_grad_agg), &log, &p_grad_agg->grads_if, p_globals);
     draw_scanLogDestroy(&log);
 
     draw_coordToIter *p_coord_2_iter=draw_blotQuadrant2CoordToIter(p_blot, horiz, vert);
@@ -2659,29 +2514,9 @@ void draw_blotInit(draw_blot *p_blot, draw_scanBrushLog *p_b, draw_globals *p_gl
     
     pts[0]=pts[2];
   }
-
-  
-  if(p_b->w.width<DRAW_TRI_THRESH) {
-    /* Calculate the distances squared between each point
-     * and its two nearest draw_grad landmarks
-     */
-    for(uint32 q=0; q<=3; q++) {
-      horiz=draw_quadrant2Horiz(q);
-      vert=draw_quadrant2Vert(q);
-      draw_grads *p_grad_agg=draw_blotQuadrant2Grads(p_blot, horiz, vert);
-      draw_grad *p_iter_2_grad=draw_gradsGradPtr(p_grad_agg, UINT_MAX);
-      for(uint32 iter=0; iter<=p_grad_agg->max_iter; iter++) {
-	draw_grad *p_grad=&p_iter_2_grad[iter];
-	draw_scanBrushLogGradDistRanker(p_b, p_grad, q, iter);
-      }
-    }   
-  }
 }
 
 void draw_gradDestroy(draw_grad *p_grad) {
-  if(p_grad->p_landmark) {
-    rtu_memFree(p_grad->p_landmark);
-  }
   DO_ASSERT(p_grad->fd_recorded=false);
   p_grad->initialised=false;
 }
@@ -3213,13 +3048,8 @@ void draw_completeQuadrant(
 			   draw_globals *p_globals
 ) {
   uint32 quad_iter;
-  if(width>=DRAW_TRI_THRESH) {
-    quad_iter=(draw_gradReferenceIter(p_ref, p_0) | (draw_gradReferenceQuadrant(p_ref) << DRAW_PROXIMITY_ITER_BITS));
-    draw_triNow(p_log, p_ref, p_0, quad_iter, p_globals);
-  } else {
-    quad_iter=draw_scanBrushLogPt2Iter(p_log->p_b, p_ref, p_0);
-    draw_smallTriNow(p_log, p_ref, p_0, quad_iter, p_globals);
-  }
+  quad_iter=(draw_gradReferenceIter(p_ref, p_0) | (draw_gradReferenceQuadrant(p_ref) << DRAW_PROXIMITY_ITER_BITS));
+  draw_triNow(p_log, p_ref, p_0, quad_iter, p_globals);
 }
 
 void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_last_fd, draw_vert *p_next_fd, draw_globals *p_globals) {
@@ -3357,7 +3187,7 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
     draw_gradReference ref=draw_gradReferenceInterface();
     draw_gradReferenceInit(&ref, draw_blotNumCoord2Iters(&p_stroke->brush.blot), p_coord_2_iters, p_0, initial_iter, q, max_iter, &initial_pt, p_trans->p_iter_2_grad_trans);
     //render bezier here from start -> ctrl -> end
-    draw_plotBez(step, p_pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG((width>=DRAW_TRI_THRESH?draw_triFillCb:draw_smallTriFillCb), &ref), &log, &ref.grads_if, p_globals);
+    draw_plotBez(step, p_pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_triFillCb, &ref), &log, &ref.grads_if, p_globals);
     draw_completeQuadrant(&log, &ref, &p_pts[2], width, p_globals);
 
     draw_gradReferenceDestroy(&ref);
@@ -3383,7 +3213,7 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
   draw_gradReference ref=draw_gradReferenceInterface();
   draw_gradReferenceInit(&ref, draw_blotNumCoord2Iters(&p_stroke->brush.blot), p_coord_2_iters, p_0, initial_iter, q, max_iter, &initial_pt, p_trans->p_iter_2_grad_trans);
   //render bezier here from start -> ctrl -> end
-  draw_plotBez(step, p_pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG((width>=DRAW_TRI_THRESH?draw_triFillCb:draw_smallTriFillCb), &ref), &log, &ref.grads_if, p_globals);
+  draw_plotBez(step, p_pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_triFillCb, &ref), &log, &ref.grads_if, p_globals);
   draw_completeQuadrant(&log, &ref, &p_pts[2], width, p_globals);
   draw_gradReferenceDestroy(&ref);
   draw_scanLogDestroy(&log);
@@ -3634,7 +3464,6 @@ sint8 *draw_test(void) {
   mu_run_test(draw_test_vertAng);
   mu_run_test(draw_test_vertNonReflexAng);
   mu_run_test(draw_test_horizVert2Quadrant);
-  mu_run_test(draw_test_landmarkPt);
   mu_run_test(draw_test_canvasFindStdScalingFactor);
   return 0;
 }

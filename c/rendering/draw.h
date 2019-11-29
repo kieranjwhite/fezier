@@ -27,9 +27,9 @@
 //due to rounding errors some asserts can fail, so we allow some leeway by including a fuzz factor in the condition
 #define DRAW_FUZZ_FACTOR 0.4
 
-#define DRAW_INNER_SEG_Y_DOM 0
+#define DRAW_INNER_SEG_NULL 0
 #define DRAW_INNER_SEG_X_DOM 1
-#define DRAW_INNER_SEG_NULL 2
+#define DRAW_INNER_SEG_Y_DOM 2
 
 #define DRAW_MIN_OPACITY 0x01000000
 #define DRAW_OPACITY_MASK 0xff000000
@@ -58,7 +58,6 @@
  * proximity values, so must be at most 16bits.
  * ((DRAW_TRI_THRESH*DRAW_PROXIMITY_FIXED_POINT)^2)*2 must be < 1*2^16
  */
-#define DRAW_TRI_THRESH 0
 //fixed point arithmetic multiplies vals by this value before casting
 #define DRAW_PROXIMITY_FIXED_POINT 16
 #define DRAW_PROXIMITY_BITS 16
@@ -107,6 +106,7 @@ typedef struct {
   DO_ASSERT(uint32 idx); //iter of this grad and its index within draw_scanLog.p_iter_2_grad
 
   float32 default_pos_inc; //how much pos increases for every change of +1 in x where draw_grad.on_x is true or y othersize
+  draw_vert last_mid;
   draw_vert mid;
   draw_vert half_delta;
   float32 slope_recip; //actually this is only the slope reciprocal where x is dominant, otherwise x is the denominator and then it's the slope
@@ -114,11 +114,17 @@ typedef struct {
   float32 c6; //(by-ay) in link's top answer - see https://stackoverflow.com/questions/3461453/determine-which-side-of-a-line-a-point-lies
   draw_vert fd_signed;
   
-  draw_landmark *p_landmark; //Will always be NULL unless stroke width < DRAW_TRI_THRESH
-
   DO_ASSERT(bool fd_recorded);
   bool initialised;
   bool on_x;
+  bool has_last_mid;
+
+  bool bisect_initialised;
+  draw_vert bisect_fd_signed; //required in draw_coreRender when deciding when to reorder vertices
+  draw_vert bisect_half_delta;
+  bool bisect_on_x;
+  float32 bisect_slope_recip; //actually this is only the slope reciprocal where x is dominant, otherwise x is the denominator and then it's the slope
+  float32 bisect_default_pos_inc; //how much pos increases for every change of +1 in x where draw_grad.on_x is true or y othersize
 } draw_grad;
 
 typedef struct {
@@ -207,6 +213,11 @@ typedef struct {
   float32 start_threshes[4];
   uint32 start_opacity[4]; //the 4 elements here will always be populated and are as follows 0th opacity from start, 1st opacity at start of full opacity region, 2nd opacity at end of full opacity region, 3rd opacity at end
 
+  float32 bisect_threshes[4]; //pos values. 0th full opacity start, 1st full opacity end, 2nd no opacity start, 3rd UINT_MAX, but if any region has a width of zero then element will not be provided and any later elements will be shifted down to fill the hole
+  float32 bisect_start_threshes[4];
+  uint32 bisect_start_opacity[4]; //the 4 elements here will always be populated and are as follows 0th opacity from start, 1st opacity at start of full opacity region, 2nd opacity at end of full opacity region, 3rd opacity at end
+  sint32 bisect_incs_per_pos[4]; //how much a change of 1 along the iter hypothenuse changes the opacity
+  
 } draw_gradConsts;
 
 typedef struct {
@@ -284,6 +295,8 @@ typedef struct {
   uint32 max_iter;
   draw_iterRange range;
   draw_gradTranslateds trans; //used by draw_renderCore
+
+  draw_iterRange bisect_range; //needs to be distinct from range because a bisector could be in a different quadrant to its corresponding grad
 } draw_grads;
 
 typedef struct {
@@ -358,7 +371,7 @@ typedef struct {
 #define DRAW_GRADS_IF_MAX_ITER_CB_ARG(cb, arg) typesafe_cb_cast(uint32 (*)(draw_gradsIf *), uint32 (*)(__typeof__((arg))), (cb))
 #define DRAW_GRADS_IF_GRAD_PTR_CB_ARG(cb, arg) typesafe_cb_cast(draw_grad *(*)(draw_gradsIf *, uint32 q), draw_grad *(*)(__typeof__((arg)), uint32 q), (cb))
 
-#define DRAW_GRADS_IF_ON_ITER_CB_ARG(cb, arg) typesafe_cb_cast(void (*)(draw_scanLog *p_log, draw_gradsIf *, const draw_vert *p_0,  const draw_vert *p_fd_times_t, const uint32, draw_globals *p_globals), void (*)(draw_scanLog *p_log, __typeof__((arg)), const draw_vert *p_0,  const draw_vert *p_fd_times_t, const uint32, draw_globals *p_globals), (cb))
+#define DRAW_GRADS_IF_ON_ITER_CB_ARG(cb, arg) typesafe_cb_cast(void (*)(draw_scanLog *p_log, draw_gradsIf *, const draw_vert *p_last, const draw_vert *p_0,  const draw_vert *p_fd_times_t, const uint32, draw_globals *p_globals), void (*)(draw_scanLog *p_log, __typeof__((arg)), const draw_vert *p_last, const draw_vert *p_0,  const draw_vert *p_fd_times_t, const uint32, draw_globals *p_globals), (cb))
 
 #define DRAW_GRADS_IF_ITER_RANGE_CB_ARG(cb, arg) typesafe_cb_cast(draw_iterRange (*)(draw_gradsIf *), draw_iterRange (*)(__typeof__((arg))), (cb))
 
@@ -405,7 +418,7 @@ typedef struct {
   uint32 last_iter; //used to ensure we don't plot triangle for same iter twice
   draw_vertNullable last_pt;
   draw_gradTranslated *p_iter_2_grad_trans;
-  uint32 start_quadrant; //firt element in p_iter_2_grad_trans should have iter==0 and belong to quadrant 'start_quadrant'
+  uint32 start_quadrant; //first element in p_iter_2_grad_trans should have iter==0 and belong to quadrant 'start_quadrant'
   uint32 max_iter; //minimum valid range of p_iter_2_grad_trans index,
 		   //iter is iter>=0 && iter<=max_iter. However not
 		   //all *p_iter_2_grad_trans[iter] instances will
@@ -459,7 +472,6 @@ typedef struct {
   sint32 y_dist;
   uint32 x_steps;
   uint32 y_steps;
-  uint32 x_dom;
 
   const draw_vert *p_0;
   const draw_vert *p_1;
@@ -522,7 +534,7 @@ typedef struct {
 } draw_capBoundaries;
 
 typedef void (draw_onPtCb)(const float32, const float32, draw_scanFillLog *, const draw_gradsIf *, const uint32, draw_globals *p_globals);
-typedef void (draw_onIterCb)(draw_scanLog *p_log, draw_gradsIf *, const draw_vert *p_0,  const draw_vert *p_fd_times_t, const uint32, draw_globals *p_globals);
+typedef void (draw_onIterCb)(draw_scanLog *p_log, draw_gradsIf *, const draw_vert *p_last, const draw_vert *p_0,  const draw_vert *p_fd_times_t, const uint32, draw_globals *p_globals);
 typedef bool (draw_onSegCb)(const draw_vert *p_0, const draw_vert *p_1, draw_onPtCb *p_callback, draw_scanFillLog *p_arg, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals);
 			   //typedef sint32 (draw_onFeatherCb)(const uint32 start_iter, const float32, uint32, draw_vert *, draw_onPtCb *p_on_pt_cb, draw_onIterCb *p_on_iter_cb, draw_scanLog *p_arg, draw_grads *p_grad_agg, const bool renderable, draw_globals *p_globals);
 
@@ -862,7 +874,7 @@ inline uint32 draw_scanLogPos2ConstIdx(const draw_scanBrushLog *p_b, const float
   return blurred?(which_half_idx<<1):1;
  }
 
-inline uint32 draw_gradPos2Idx(const draw_grad *p_grad, const draw_scanBrushLog *p_b, const float32 pos) {
+inline uint32 draw_pos2Idx(const draw_scanBrushLog *p_b, const float32 pos) {
   return draw_scanLogPos2ConstIdx(p_b, pos);
 }
 
@@ -1058,7 +1070,6 @@ inline void draw_dotScanRowRightBnd(float32 x, float32 y, draw_scanFillLog *p_f,
 
 float32 draw_vertAngBetween(const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2);
 uint32 draw_calcMaxIter(const float32 width, const float32 ang);
-void draw_landmarkReify(draw_landmark *p_landmark, const draw_landmark *p_other, const bool is_upper);
 
 inline uint32 draw_coordToIterVertY2Idx(const draw_coordToIter *p_c2I, const float32 y) {
   return ((p_c2I->min_on_y_y_coord-y)*2+p_c2I->max_on_y_x_coord);
@@ -1173,32 +1184,6 @@ inline uint32 draw_insertProximityVal(const uint32 old_nearest, const uint32 is_
   return ((old_nearest << DRAW_PROXIMITY_SHIFT(is_nearest)) | (val<<DRAW_PROXIMITY_SHIFT(!is_nearest)));
 }
 
-inline bool draw_proxLandmarkDistRanker(const draw_prox *p_prox, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta, const uint32 q, const uint32 iter) {
-  LOG_ASSERT(p_prox->p_xy_2_nearest_landmark!=NULL, "nearest_landmark_proximity array not declared");
-  LOG_ASSERT(q<=3, "out of range q: %u", q);
-  LOG_ASSERT((iter & DRAW_PROXIMITY_ITER_MASK)==iter, "out of range iter: %u", iter);
-  uint32 proximity=draw_proxProximity(p_prox, landmark_row_dist_sq, x_delta);
-  uint32 offset_idx=y_offset_idx+x;
-
-  LOG_ASSERT(offset_idx<p_prox->nearest_landmark_size, "out of range offset: %u, size %u", offset_idx, p_prox->nearest_landmark_size);
-
-  LOG_ASSERT(offset_idx<p_prox->span*p_prox->span, "out of range offset_idx: %u, %u", offset_idx, p_prox->span);
-  uint32 *p_element=&p_prox->p_xy_2_nearest_landmark[offset_idx];
-  
-  uint32 *p_iter=&p_prox->p_xy_2_iter[offset_idx];
-  bool is_near=proximity>DRAW_PROXIMITY_EXTRACT(1, *p_element);
-  if(is_near) {
-    //are we the nearest or just the 2nd nearest
-    uint32 old_nearest=DRAW_PROXIMITY_EXTRACT(0, *p_element);
-    uint32 is_nearest=proximity>old_nearest;
-    //*p_element=((old_nearest << DRAW_PROXIMITY_SHIFT(is_nearest)) | (proximity<<DRAW_PROXIMITY_SHIFT(!is_nearest)));
-    *p_element=draw_insertProximityVal(old_nearest, is_nearest, proximity);
-    *p_iter=draw_insertProximityVal(DRAW_PROXIMITY_EXTRACT(0, *p_iter), is_nearest, ((q<<DRAW_PROXIMITY_ITER_BITS) | (iter & DRAW_PROXIMITY_ITER_MASK)));
-  }
-
-  return is_near;
-}
-
 inline bool draw_proxIsClosest(const draw_prox *p_prox, const float32 x_cen, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta) {
   LOG_ASSERT(p_prox->p_xy_2_nearest_landmark!=NULL, "nearest_landmark_proximity array not declared");
 
@@ -1212,26 +1197,12 @@ inline bool draw_scanBrushLogIsClosest(const draw_scanBrushLog *p_b, const float
   return draw_proxIsClosest(&p_b->proximity, x_cen, x, y_offset_idx, landmark_row_dist_sq, x_delta);
 }
 
-inline bool draw_scanBrushLogLandmarkDistRanker(const draw_scanBrushLog *p_b, const uint32 x, const uint32 y_offset_idx, const uint32 landmark_row_dist_sq, const sint32 x_delta, const uint32 q, const uint32 iter) {
-  /*No assert here as we will get dist_squareds that are > max_dist_squared.
-    However draw_proxProximity ensures proximity is always >=0
-   */
-  //LOG_ASSERT(p_b->proximity.max_dist_squared>=landmark_row_dist_sq+(x_delta*x_delta), "dist_squared too large: %u, width: %u", landmark_row_dist_sq+(x_delta*x_delta), p_b->w.width);
-  return draw_proxLandmarkDistRanker(&p_b->proximity, x, y_offset_idx, landmark_row_dist_sq, x_delta, q, iter);
-}
-
 inline uint32 draw_proxRowOffset(const draw_prox *p_prox, const draw_vert *p_center, const sint32 y) {
   return draw_proxOffset(p_prox, p_center->y, y)*p_prox->span;
 }
 
 inline uint32 draw_scanBrushLogRowOffset(const draw_scanBrushLog *p_b, const draw_vert *p_center, const sint32 y) {
   return draw_proxRowOffset(&p_b->proximity, p_center, y);
-}
-
-draw_vert draw_landmarkPt(draw_landmark *p_landmark, const uint32 q, const draw_vert *p_mid);
-inline sint32 draw_landmarkXDelta(draw_landmark *p_landmark, const uint32 x, const uint32 q, const draw_vert *p_mid) {
-  float32 landmark_x=draw_landmarkPt(p_landmark, q, p_mid).x;
-  return ((landmark_x+DRAW_PROXIMITY_ORIGIN_OFFSET)-x)*DRAW_PROXIMITY_FIXED_POINT;
 }
 
 inline float32 draw_scanBrushLogRelativise(const draw_scanBrushLog *p_b, float32 brush_center, uint32 coord) {
@@ -1398,7 +1369,6 @@ void draw_gradTranslatedsReset(draw_gradTranslateds *p_grad_trans);
 uint32 draw_gradsMaxIter(draw_grads *p_grad_agg);
 draw_iterRange draw_gradsIterRange(draw_grads *p_grad_agg);
 void draw_bezInit(draw_bez *p_bez, const float32 step, const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2, const draw_globals *p_globals);
-void draw_landmarkInit(draw_landmark *p_landmark, const draw_vert *p_corner);
 void draw_gradDestroy(draw_grad *p_grad);
 uint32 draw_scanBrushLogPt2Iter(const draw_scanBrushLog *p_b, draw_gradReference *p_ref, const draw_vert *p_0);
 sint32 draw_gradReferenceVert(const draw_gradReference *p_grad_ref);
