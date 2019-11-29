@@ -1328,7 +1328,6 @@ uint32 draw_gradsMaxIter(draw_grads *p_grad_agg);
 draw_iterRange draw_gradsIterRange(draw_grads *p_grad_agg);
 void draw_bezInit(draw_bez *p_bez, const float32 step, const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2, const draw_globals *p_globals);
 void draw_gradDestroy(draw_grad *p_grad);
-uint32 draw_scanBrushLogPt2Iter(const draw_scanBrushLog *p_b, draw_gradReference *p_ref, const draw_vert *p_0);
 sint32 draw_gradReferenceVert(const draw_gradReference *p_grad_ref);
 draw_grad *draw_gradsGradPtr(draw_grads *p_grad_agg, const uint32 q);
 void draw_proxDestroy(draw_prox *p_prox);

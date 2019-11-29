@@ -1537,16 +1537,9 @@ void draw_triNow(
   draw_vert *p_center=&p_grad_ref->center;
   draw_grad *p_grad=&p_iter_2_grad[iter];
 
-  /*
-  if(G_trace) {
-    LOG_ERROR("grad %u %u. pos inc: %f, half delta: %f,%f, slope_recip: %f, fd_signed: %f,%f", q, iter, p_grad->default_pos_inc, p_grad->half_delta.x, p_grad->half_delta.y, p_grad->slope_recip, p_grad->fd_signed.x, p_grad->fd_signed.y);
-  }
-  */
-  
   draw_gradTranslatedInit(draw_gradReferenceTrans(p_grad_ref, q, iter), p_grad, p_center);
   
   draw_vert verts[]={ *p_center, p_grad_ref->last_pt.pt, *p_0 };
-  //LOG_INFO("verts[0]: %f,%f. verts[1]: %f,%f. verts[2]: %f,%f", verts[0].x, verts[0].y, verts[1].x, verts[1].y, verts[2].x, verts[2].y);
   draw_gradReferenceSetIterRange(p_grad_ref, q, iter);
   draw_onIterRowCb *p_row_renderer;
 
@@ -2010,51 +2003,6 @@ uint32 draw_scanBrushLogMagFactor(const draw_scanBrushLog *p_b) {
 
 float32 draw_scanBrushLogScaleFactor(const draw_scanBrushLog *p_b) {
   return p_b->scaling_factor;
-}
-
-uint32 draw_scanBrushLogPt2Iter(const draw_scanBrushLog *p_b, draw_gradReference *p_ref, const draw_vert *p_0) {
-  const draw_prox *p_prox=&p_b->proximity;
-
-  /* When *p_0 is very close to p_ref->center the dimension with the smaller
-     distance between *p_0 and p_ref->center can still cross a pixel boundary
-     while the other dimension with larger distance to the center can still
-     share the same dimensional value as the center, resulting
-     in an incorrect q / iter pair being chosen. Therefore we try to extend
-     the line from p_ref->center to *p_0 to twice its length in order
-     to give the per-pixel iter selection a reasonable chance of working.
-  */
-  uint32 half_span=draw_proxHalfSpan(p_prox, p_b->w.width, false);
-  sint32 rounded_x_offset=p_0->x<(sint32)p_0->x, rounded_y_offset=p_0->y<(sint32)p_0->y; //casting to sint32 rounds towards 0, so if negative we subtract 1 to ensure cons
-  //sint32 rounded_x_offset=0, rounded_y_offset=0; //casting to sint32 rounds towards 0, so if negative we subtract 1 to ensure cons
-  draw_vert rounded={ .x=((sint32)p_0->x)-rounded_x_offset, .y=((sint32)p_0->y)-rounded_y_offset };
-  draw_vert delta=draw_diff(&rounded, &p_ref->center);
-  //draw_vert delta=draw_diff(&rounded, &p_prox->cen);
-  draw_vert abs_delta={ .x=ABSF(delta.x), .y=ABSF(delta.y) };
-  float32 largest_delta=MAX(abs_delta.x, abs_delta.y);
-  draw_vert *p_final_delta;
-  draw_vert final_delta;
-  if(largest_delta*2<=half_span) {
-    final_delta=draw_by(&delta, 2);
-    p_final_delta=&final_delta;
-  } else {
-    p_final_delta=&delta;
-  }
-  draw_vert point=draw_add(&p_ref->center, p_final_delta);
-  //draw_vert point=draw_add(&p_prox->cen, p_final_delta);
-
-  rounded_x_offset=point.x<(sint32)point.x; //casting to sint32 rounds towards 0, so if negative we subtract 1 to ensure cons
-  rounded_y_offset=point.y<(sint32)point.y;
-  //LOG_ASSERT(IMPLIES(rounded_x_offset==1, point.x<0), "If the existing value of rounded_x_offset==1 so will an updated one");
-  //LOG_ASSERT(IMPLIES(rounded_y_offset==1, point.y<0), "If the existing value of rounded_y_offset==1 so will an updated one");
-  sint32 y_coord=((sint32)point.y)-rounded_y_offset;
-  //LOG_INFO("point: %f, %f. final delta: %f, %f", point.x, point.y, p_final_delta->x, p_final_delta->y);
-  uint32 y_offset_idx=draw_scanBrushLogRowOffset(p_b, &p_ref->center, y_coord);
-  //uint32 y_offset_idx=draw_scanBrushLogRowOffset(p_b, &p_prox->cen, (uint32)point.y);
-  uint32 offset_idx=draw_proxOffsetIdx(p_prox, p_ref->center.x, ((sint32)point.x)-rounded_x_offset, y_offset_idx);
-  //uint32 offset_idx=draw_proxOffsetIdx(p_prox, p_prox->cen.x, (uint32)point.x, y_offset_idx);
-  
-  uint32 quad_iter=DRAW_PROXIMITY_EXTRACT(0, p_prox->p_xy_2_iter[offset_idx]);
-  return quad_iter;
 }
 
 void draw_scanBrushLogDestroy(draw_scanBrushLog *p_b) {
@@ -2982,7 +2930,6 @@ void draw_completeQuadrant(
 }
 
 void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_last_fd, draw_vert *p_next_fd, draw_globals *p_globals) {
-#if 1
   draw_canvasMarkDirtyRadius(&p_globals->canvas, p_0, p_stroke->brush.b.w.breadth, p_stroke->brush.b.w.blur_width);
 
   draw_vert neg_last_fd=draw_neg(p_last_fd);
@@ -3146,7 +3093,6 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
   draw_completeQuadrant(&log, &ref, &p_pts[2], width, p_globals);
   draw_gradReferenceDestroy(&ref);
   draw_scanLogDestroy(&log);
-#endif
 }
 
 void draw_strokeStartCap(draw_stroke *p_stroke, const draw_vert *p_ctrl, const draw_vert *p_end, draw_globals *p_globals) {
