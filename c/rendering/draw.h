@@ -177,10 +177,6 @@ typedef struct {
   DO_ASSERT(uint32 idx); //iter of this grad and its index within draw_scanLog.p_iter_2_grad
 
   draw_vert mid; //mid point between translated bounds
-  //cross-product formula constants - see https://stackoverflow.com/questions/3461453/determine-which-side-of-a-line-a-point-lies
-  float32 c6_ax_less_c5_ay;
-  draw_vert offset;
-  
   bool initialised;
 } draw_gradTranslated;
 
@@ -870,17 +866,6 @@ inline uint32 draw_gradIdx2ConstIdx(const draw_grad *p_grad, const uint32 grad_i
   return grad_idx;
 }
 
-inline float32 draw_gradRowSideM(const draw_grad *p_grad, const draw_gradTranslated *p_grad_trans, const float32 y) {
-  LOG_ASSERT(p_grad->idx==p_grad_trans->idx, "iter mismatch: %u, %u", p_grad->idx, p_grad_trans->idx);
-  float32 c5_cy=p_grad->c5*y;
-  float32 c5_cy_plus_c6_ax_less_c5_ay=c5_cy+p_grad_trans->c6_ax_less_c5_ay;
-  return c5_cy_plus_c6_ax_less_c5_ay;
-}
-
-inline float32 draw_gradNewSideM(const draw_grad *p_grad, const draw_gradTranslated *p_grad_trans, const float32 x, const float32 y) {
-  return draw_gradRowSideM(p_grad, p_grad_trans, y)-(p_grad->c6*x);
-}
-
 inline float32 draw_gradRow2NewSideM(const draw_grad *p_grad, const float32 row_side_m, const float32 x) {
   return row_side_m-(p_grad->c6*x);
 }
@@ -1004,9 +989,6 @@ inline float32 draw_gradLongConst(const draw_grad *p_grad, const draw_vert *p_a)
 
 inline void draw_gradTranslatedInit(draw_gradTranslated *p_grad_trans, const draw_grad *p_grad, const draw_vert *p_mid) {
   p_grad_trans->mid=*p_mid;
-  draw_vert min_bound=draw_diff(&p_grad_trans->mid, &p_grad->half_delta);
-  p_grad_trans->c6_ax_less_c5_ay=draw_gradLongConst(p_grad, &min_bound);
-  p_grad_trans->offset=draw_diff(&p_grad_trans->mid, &p_grad->mid);
   p_grad_trans->initialised=true;
 }
 

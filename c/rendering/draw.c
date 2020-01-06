@@ -99,8 +99,6 @@ extern inline uint32 draw_largerPowerOf2(uint32 start, uint32 target);
 extern inline uint32 draw_scanLogPos2ConstIdx(const draw_scanBrushLog *p_b, const float32 pos);
 extern inline uint32 draw_gradPos2Idx(const draw_grad *p_grad, const draw_scanBrushLog *p_b, const float32 pos);
 extern inline uint32 draw_gradIdx2ConstIdx(const draw_grad *p_grad, const uint32 grad_idx);
-extern inline float32 draw_gradRowSideM(const draw_grad *p_grad, const draw_gradTranslated *p_grad_trans, const float32 y);
-extern inline float32 draw_gradNewSideM(const draw_grad *p_grad, const draw_gradTranslated *p_grad_trans, const float32 x, const float32 y);
 extern inline float32 draw_gradRow2NewSideM(const draw_grad *p_grad, const float32 row_side_m, const float32 x);
 extern inline uint32 draw_antiAlias(float32 coord, uint32 col, bool next_pixel);
 extern inline float32 draw_rangeDist(sint32 min, sint32 max, sint32 val);
@@ -552,84 +550,6 @@ void draw_gradInitConsts(draw_grad *p_grad, const draw_vert *p_delta) {
   p_grad->c6=p_delta->y;
 }
 
-uint32 draw_findFirstIter4Row(draw_grad *p_iter_2_grad, draw_gradTranslated *p_iter_2_grad_trans, const uint32 x, const uint32 y, const uint32 start_iter, const uint32 stop_iter, float32 *p_new_side_m, const sint32 iter_inc) {
-  //this function only returns next iter if we've moved past the old one.
-  LOG_ASSERT(rtu_abs(SGN((sint32)stop_iter-(sint32)start_iter)-SGN(iter_inc))<2, "would never terminate %u, %u", start_iter, stop_iter);
-  uint32 iter=start_iter;
-
-  draw_grad *p_next_grad=&p_iter_2_grad[iter];
-  draw_gradTranslated *p_next_grad_trans=&p_iter_2_grad_trans[iter];
-  
-  //When x is incremented the *p_new_side_m=*p_new_side_m-p_next_grad->c6.
-  //Therefore if *p_new_side_m and p_next_grad->c6 have the same signs (neither of which is 0), the iter's draw_grad will be crossed in future by a left to right scan across the screen.
-  //Else if the signs are different (and neither are 0), then the draw_grad is behind us in a left to right scan
-  //Else if *p_new_side_m is 0, then we are on the line
-  //Else if p_next_grad->c6 is 0, then the draw_grad is horizontal and the scan line runs parallel to it (but not on it)
-  sint32 new_side_sign=SGN(*p_new_side_m);
-  sint32 next_c6_sign=SGN(p_next_grad->c6);
-
-  sint32 sign_delta=new_side_sign-next_c6_sign;
-  bool iter_update_needed=(sign_delta==2 || sign_delta==-2);
-  LOG_ASSERT(p_next_grad->initialised, "uninitialised grad: %u", start_iter);
-  LOG_ASSERT(p_next_grad_trans->initialised, "uninitialised grad trans: %u", start_iter);
-  while(iter_update_needed && iter!=stop_iter) {
-    //last_iter=iter;
-    iter+=iter_inc;
-    p_next_grad=&p_iter_2_grad[iter];
-    p_next_grad_trans=&p_iter_2_grad_trans[iter];
-    *p_new_side_m=draw_gradNewSideM(p_next_grad, p_next_grad_trans, x, y);
-
-    sign_delta=SGN(*p_new_side_m)-SGN(p_next_grad->c6);
-    iter_update_needed=(sign_delta==2 || sign_delta==-2);
-  }
-  return iter;
-}
-
-static sint8 *draw_test_findFirstIter4Row(void) {
-  draw_globals *p_globals=draw_globalsInit();
-  rtu_initFastATan(DRAW_ATAN_DIVISORS, p_globals->p_rtu);
-  draw_strokeWidth w={
-    .width=100,
-    .width_squared=10000,
-    .width_recip=0.01
-  };
-  draw_grad grads[]=
-    {
-      {
-	.fd_signed={.x=0, .y=100},
-	.mid={.x=50, .y=0},
-	.initialised=true
-      },
-      {
-	.fd_signed={.x=100, .y=0},
-	.mid={.x=0, .y=50},
-	.initialised=true
-      }
-    };
-  draw_gradTranslated grad_trans[2]={
-    {
-      .initialised=false
-    },
-    {
-      .initialised=false
-    }
-  };
-  DO_ASSERT(grads[0].idx=0);
-  DO_ASSERT(grads[1].idx=1);
-  DO_ASSERT(grad_trans[0].idx=0);
-  DO_ASSERT(grad_trans[1].idx=1);
-
-  draw_fillIter(&grads[0], &grad_trans[0], &w, p_globals);
-  draw_fillIter(&grads[1], &grad_trans[1], &w, p_globals);
-  
-  float32 new_side_m=0; //point is on start_iter => new_side_m==0
-
-  mu_assert("should remain on a draw_grad until we move past it", draw_findFirstIter4Row(grads, grad_trans, 0, 0, 0, 1, &new_side_m, 1)==0);
-  rtu_destroyATan(p_globals->p_rtu);
-  draw_globalsDestroy(p_globals);
-  return 0;
-}
-
 void draw_iterRangeInit(draw_iterRange *p_it_range, const uint32 q, const uint32 iter) {
   p_it_range->q=q;
   p_it_range->iter=iter;
@@ -637,145 +557,6 @@ void draw_iterRangeInit(draw_iterRange *p_it_range, const uint32 q, const uint32
 
 sint32 draw_scanSpanIterInc(const draw_scanSpan *p_span) {
   return BCMP(p_span->iters.end, p_span->iters.start);
-}
-
-sint32 draw_gradIterInc(
-			const draw_grad *p_a, 
-			const draw_gradTranslated *p_a_trans, 
-			const draw_grad *p_b, 
-			const draw_gradTranslated *p_b_trans, 
-			const uint32 start_x, 
-			const uint32 end_x, 
-			const uint32 y
-			) {
-  LOG_ASSERT(p_a->idx<=p_b->idx, "draw_grad of smaller iter must be passed as first argument");
-  //returns iter inc, assuming *p_a is the draw_grad of the smaller iter
-  float32 row_sides[2]={
-    draw_gradRowSideM(p_a, p_a_trans, y), 
-    draw_gradRowSideM(p_b, p_b_trans, y)
-  };
-
-  float32 new_side_start_xs[2]={
-    draw_gradRow2NewSideM(p_a, row_sides[0], start_x),
-    draw_gradRow2NewSideM(p_b, row_sides[1], start_x)
-  };
-
-  bool a_is_first;
-  sint32 a_sgn=SGN(p_a->c6);
-  sint32 b_sgn=SGN(p_b->c6);
-    /* At least one of the c6s==0 (ie that line is horizontal) -- the answer then depends on the other draw_grad
-       Which point (start_x, y) or (end_x, y) is closer to that non-horizontal draw_gad
-       If (start_x, y) is closer then we wish to move from non horizontal draw_grad to the horizontal one. Otherwise vice versa.
-    */
-    
-    if(a_sgn!=0 || b_sgn!=0) {
-      const draw_grad *p_grads[2]={p_a, p_b};
-      uint32 idx=b_sgn!=0;
-      float32 abs_new_side_start_x=ABSF(new_side_start_xs[idx]);
-      float32 abs_new_side_end_x=ABSF(draw_gradRow2NewSideM(p_grads[idx], row_sides[idx], end_x));
-      return (((abs_new_side_start_x>abs_new_side_end_x)^!idx)<<1)-1;
-      
-    } else {
-      //doesn't matter what we return here
-      return +1;
-    }
-  return ((a_is_first)<<1)-1;
-}
-
-
-static sint8 *draw_test_gradIterInc(void) {
-  draw_globals *p_globals=draw_globalsInit();
-  rtu_initFastATan(DRAW_ATAN_DIVISORS, p_globals->p_rtu);
-  draw_strokeWidth w={
-    .width=100,
-    .width_squared=10000,
-    .width_recip=0.01
-  };
-  draw_grad grads[]=
-    {
-      {
-	.fd_signed={.x=0, .y=100},
-	.mid={.x=50, .y=0},
-	.initialised=false
-      },
-      {
-	.fd_signed={.x=100, .y=0},
-	.mid={.x=100, .y=50},
-	.initialised=false
-      }
-    };
-  draw_gradTranslated grad_trans[2]={
-    {
-      .initialised=false
-    },
-    {
-      .initialised=false
-    }
-  };
-  draw_grad *p_horizontal_left=&grads[0];
-  draw_grad *p_vertical=&grads[1];
-  DO_ASSERT(p_horizontal_left->idx=0);
-  DO_ASSERT(p_vertical->idx=1);
-  DO_ASSERT(grad_trans[0].idx=0);
-  DO_ASSERT(grad_trans[1].idx=1);
-  DO_ASSERT(grads[0].fd_recorded=true);
-  DO_ASSERT(grads[1].fd_recorded=true);
-  draw_fillIter(&grads[0], &grad_trans[0], &w, p_globals);
-  draw_fillIter(&grads[1], &grad_trans[1], &w, p_globals);
-
-
-  mu_assert("result of 1 required from draw_gradIterInc when point ((0, 0) for example) is on the first line in the argument list", draw_gradIterInc(p_horizontal_left, &grad_trans[0], p_vertical, &grad_trans[1], 0, 1, 0)==1);
-
-  DO_ASSERT(p_horizontal_left->idx=1);
-  DO_ASSERT(p_vertical->idx=0);
-  DO_ASSERT(grad_trans[0].idx=1);
-  DO_ASSERT(grad_trans[1].idx=0);
-  mu_assert("result of -1 required from draw_gradIterInc when point ((0, 0) for example) is on the second line in the argument list", draw_gradIterInc(p_vertical, &grad_trans[1], p_horizontal_left, &grad_trans[0], 0, 1, 0)==-1);
-
-  draw_grad grads_h[]=
-    {
-      {
-	.fd_signed={.x=0, .y=100},
-	.mid={.x=150, .y=100},
-	.initialised=false
-      },
-      {
-	.fd_signed={.x=100, .y=0},
-	.mid={.x=100, .y=50},
-	.initialised=false
-      }
-    };
-  draw_grad *p_horizontal_right=&grads_h[0];
-  p_vertical=&grads_h[1];
-  
-  draw_gradTranslated grad_trans_h[2]={
-    {
-      .initialised=false
-    },
-    {
-      .initialised=false
-    }
-  };;
-  DO_ASSERT(p_horizontal_right->idx=0);
-  DO_ASSERT(p_vertical->idx=1);
-  DO_ASSERT(grad_trans_h[0].idx=0);
-  DO_ASSERT(grad_trans_h[1].idx=1);
-  DO_ASSERT(grads_h[0].fd_recorded=true);
-  DO_ASSERT(grads_h[1].fd_recorded=true);
-  draw_fillIter(&grads_h[0], &grad_trans_h[0], &w, p_globals);
-  draw_fillIter(&grads_h[1], &grad_trans_h[1], &w, p_globals);
-
-  mu_assert("result of -1 required from draw_gradIterInc when point ((100, 0) for example) is on the first line in the argument list", draw_gradIterInc(p_horizontal_right, &grad_trans_h[0], p_vertical, &grad_trans_h[1], 100, 101, 0)==-1);
-
-  DO_ASSERT(p_horizontal_right->idx=1);
-  DO_ASSERT(p_vertical->idx=0);
-  DO_ASSERT(grad_trans_h[0].idx=1);
-  DO_ASSERT(grad_trans_h[1].idx=0);
-  mu_assert("result of 1 required from draw_gradIterInc when point ((100, 0) for example) is on the second line in the argument list", draw_gradIterInc(p_vertical, &grad_trans_h[1], p_horizontal_right, &grad_trans_h[0], 100, 101, 0)==1);
-
-  rtu_destroyATan(p_globals->p_rtu);
-  draw_globalsDestroy(p_globals);
-  return 0;
 }
 
 draw_range draw_orderedIters(const draw_range *p_start, const draw_range *p_end) {
@@ -3629,8 +3410,6 @@ void draw_rectIntReify(draw_rectInt *p_orig) {
 sint8 *draw_test(void) {
   mu_run_test(draw_test_proxInit);
   mu_run_test(draw_test_blotBBoxDims);
-  mu_run_test(draw_test_findFirstIter4Row);
-  mu_run_test(draw_test_gradIterInc);
   mu_run_test(draw_test_vertAng);
   mu_run_test(draw_test_vertNonReflexAng);
   mu_run_test(draw_test_horizVert2Quadrant);
