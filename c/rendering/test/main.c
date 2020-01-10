@@ -20,6 +20,7 @@
 #include <stdlib.h>
 #include <stdbool.h>
 #include <string.h>
+#include <time.h>
 
 #include <SDL.h>
 
@@ -173,7 +174,21 @@ sint32 main(sint32 argc, char **argv)
 
   uint32 *p_pixels=(uint32 *)rtu_memAlloc(screenWidth*screenHeight*sizeof(uint32));
   draw_init(screenWidth, screenHeight, devicePixelRatio, p_pixels, p_globals);
+
+  struct timespec start;
+  struct timespec now;
+  clock_gettime(CLOCK_MONOTONIC, &start);
   render(screen, surface, p_globals);
+  clock_gettime(CLOCK_MONOTONIC, &now);
+  now.tv_sec -= start.tv_sec;
+  if (now.tv_nsec < start.tv_nsec)
+  {
+    now.tv_sec--;
+    now.tv_nsec = 1000000000 + now.tv_nsec - start.tv_nsec;
+  } else {
+    now.tv_nsec -= start.tv_nsec;
+  }
+  LOG_INFO("elapsed: %ld s %ld ns \n", now.tv_sec, now.tv_nsec);
 
   SDL_Flip(screen);
 
