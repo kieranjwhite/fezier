@@ -1,0 +1,16 @@
+a.out
+TAGS
+c/draw_tiles.js.map
+c/draw_tiles.js.mem
+c/draw_tiles.js~
+c/rendering/test/help-dummy.o
+c/rendering/test/test_render_dodgy_stroke.c
+c/rendering/test/test_render_dodgy_stroke.c~
+c/rendering/test/test_render_full.c
+c/rendering/test/test_render_full.c~
+c/rendering/test/test_render_one_stroke.c
+c/rendering/test/test_render_one_stroke.c~
+c/rendering/tile.c
+c/rendering/tile.h
+c/draw_tiles.js
+c/rendering/test/orig_render.c

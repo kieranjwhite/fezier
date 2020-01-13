@@ -85,8 +85,7 @@ typedef struct {
 typedef struct {
   DO_ASSERT(uint32 idx); //iter of this grad and its index within draw_scanLog.p_iter_2_grad
 
-  float32 default_pos_inc; //how much pos increases for every change of +1 in x where draw_grad.on_x is true or y othersize
-  draw_vert last_mid;
+  float32 default_pos_inc; //how much pos increases for every change of +1 in x where draw_grad.on_x is true or for every change of +1 in y otherwise
   draw_vert mid;
   draw_vert half_delta;
   float32 slope_recip; //actually this is only the slope reciprocal where x is dominant, otherwise x is the denominator and then it's the slope
@@ -97,14 +96,19 @@ typedef struct {
   DO_ASSERT(bool fd_recorded);
   bool initialised;
   bool on_x;
-  bool has_last_mid;
 
-  bool bisect_initialised;
-  draw_vert bisect_fd_signed; //required in draw_coreRender when deciding when to reorder vertices
-  draw_vert bisect_half_delta;
-  bool bisect_on_x;
-  float32 bisect_slope_recip; //actually this is only the slope reciprocal where x is dominant, otherwise x is the denominator and then it's the slope
-  float32 bisect_default_pos_inc; //how much pos increases for every change of +1 in x where draw_grad.on_x is true or y othersize
+  //draw_vert bisect_last_mid; //done
+  //bool bisect_has_last_mid; //done
+  
+  //bool bisect_has_bisector_normal; //done
+  //draw_vert bisector_normal; //done, not a unit vector, nor is its magnitude in any way related to the brush width
+  //draw_vert segment_fd_signed; //done, slope between mid and bisect_last_mid, normalised, required in draw_coreRender when deciding when to reorder vertices
+
+  //bool bisect_initialised;
+  //draw_vert bisect_half_delta;
+  //bool bisect_on_x;
+  //float32 bisect_slope_recip; //actually this is only the slope reciprocal where x is dominant, otherwise x is the denominator and then it's the slope
+  //float32 bisect_default_pos_inc; //how much pos increases for every change of +1 in x where draw_grad.on_x is true or y othersize
 } draw_grad;
 
 typedef struct {
@@ -1191,7 +1195,7 @@ inline uint32 draw_renderCoreHeight(const draw_renderCore *p_render_core, const 
 }
 
 bool draw_tail(draw_vert *p_0, draw_vert *p_1, draw_onPtCb *p_on_pt_cb, draw_scanFillLog *p_arg, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals);
-sint32 draw_plotBez(
+draw_vert draw_plotBez(
 		    const float32 step, 
 		    draw_vert *p_pts, 
 		    draw_onPtCb *p_on_pt_cb,
@@ -1232,7 +1236,7 @@ void draw_strokeRender(draw_stroke *p_stroke, draw_globals *p_globals);
 void draw_strokeReset(draw_stroke *p_stroke, draw_globals *p_globals);
 void draw_quadPtsInit(draw_quadPts *p_pts, const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2);
 void draw_quadPtsSplit(const draw_quadPts *p_pts, float32 t, draw_quadPts *p_fst, draw_quadPts *p_snd);
-bool draw_fillIter(draw_grad *p_grad, draw_gradTranslated *p_grad_trans, const draw_strokeWidth *p_w, const draw_globals *p_globals);
+//bool draw_fillIter(draw_grad *p_grad, draw_gradTranslated *p_grad_trans, const draw_strokeWidth *p_w, const draw_globals *p_globals);
 void draw_gradInitFill(draw_grad *p_grad, const draw_strokeWidth *p_w, const draw_globals *p_globals);
 draw_vert draw_vertRotate(const draw_vert *p_vert, const float32 ang, const draw_vert *p_origin);
 uint32 draw_renderCoreMaxIter(const draw_renderCore *p_renderCore);

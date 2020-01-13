@@ -59,6 +59,7 @@ inline uint32 rtu_abs(sint32 v) {
 //#define ABSF(X) ((X)<0?-(X):(X))
 #define ABSF(X) ((((X)>=0)*(X))-(!((X)>=0))*(X))
 #define SGN(X) (((X) > 0) - ((X) < 0))
+#define RANGE(X,MIN,MAX_PLUS) ((X>=MIN && X<MAX_PLUS?0:(X<MIN?-1:+1)))
 #define CMP(X,Y) (((X) > (Y)) - ((X) < (Y)))
 #define DIM(X) (sizeof(X)/sizeof(X[0]))
 #define IMPLIES(X,Y) ((!(X)) || ((X) && (Y)))

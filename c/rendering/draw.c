@@ -25,6 +25,7 @@
 #include "../rtu.h"
 #include "../types.h"
 #include "../ccan/typesafe_cb/typesafe_cb.h"
+#include "test/image_buf.h"
 
 bool draw_canvasSetup(draw_canvas *p_canvas, uint32 w, uint32 h, uint32* p_pixels) {
   p_canvas->p_bitmap=p_pixels;
@@ -963,7 +964,8 @@ uint32 draw_innerSeg(const draw_vert *p_0, const draw_vert *p_1, draw_onPtCb *p_
     //Calculating o_inc below based on ay_dist will result in overlay large increments to x,
     //screwing up antialiasing.
 
-    //However this is a problem as while drawing a line, the dominating dimension will change quuite frequently
+    //However this is a problem as while drawing a line, the
+    //dominating dimension will change quite frequently
     result=draw_segFastRenderY(&seg, p_callback, p_arg, p_grad_agg, iter, p_globals);
   } else {
     if(ABSF(seg.pt_diff.x)*seg.x_steps>ABSF(seg.pt_diff.y)*seg.y_steps) {
@@ -1076,7 +1078,7 @@ void draw_gradInitFill(draw_grad *p_grad, const draw_strokeWidth *p_w, const dra
     float32 row_width_recip[2]={ p_w->width_recip };
     draw_vert delta;
     if(fd.y>fd.x) {
-      p_grad->on_x=true;
+      p_grad->on_x=true; //the grad is perpendicular to the tangent (which has a slope of fd_signed)
       if(p_grad->fd_signed.y!=0) {
 	float32 m=-(p_grad->fd_signed.x/p_grad->fd_signed.y); //-ve reciprocal of fd (since it's for a perpendicular line)
 	/*
@@ -1365,10 +1367,12 @@ void draw_triFillCb(
   draw_triFill(p_log, p_grad_ref, p_0, p_globals);
 }
 
+/*
 bool draw_fillIter(draw_grad *p_grad, draw_gradTranslated *p_grad_trans, const draw_strokeWidth *p_w, const draw_globals *p_globals) {
   draw_gradInitFill(p_grad, p_w, p_globals);
   return draw_gradTranslatedFill(p_grad_trans, p_grad, &p_grad->mid);
 }
+*/
 
 void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, draw_globals *p_globals) {
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
@@ -1404,7 +1408,7 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
        * perpendicular, but are also on a straight line. TODO
        * 
        */
-      
+
       draw_blotContinue(&p_grad->mid, &p_grad->fd_signed, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
       //LOG_INFO("tracking and blotting.");
       return;
@@ -1416,6 +1420,98 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
       ordered_verts[2]=verts[3];
       ordered_verts[3]=verts[1];
     }
+
+    sint32 min_x=17, max_x=17, min_y=14, max_y=14;
+    enum {V_UNSET, ABOVE, BELOW, V_RENDERABLE} v_state=V_UNSET;
+    enum {H_UNSET, LEFT, RIGHT, H_RENDERABLE} h_state=H_UNSET;
+    bool renderable=false;
+    for(int idx=0; idx<=3; idx++) {
+      switch(v_state) {
+      case V_UNSET:
+	switch(RANGE(ordered_verts[idx].y, min_y, max_y)) {
+	case -1:
+	  v_state=ABOVE;
+	  break;
+	case 0:
+	  v_state=V_RENDERABLE;
+	  break;
+	case 1:
+	  v_state=BELOW;
+	  break;
+	}
+	break;
+      case ABOVE:
+	switch(RANGE(ordered_verts[idx].y, min_y, max_y)) {
+	case -1:
+	  break;
+	case 0:
+	case 1:
+	  v_state=V_RENDERABLE;
+	  break;
+	}	
+	break;
+      case BELOW:
+	switch(RANGE(ordered_verts[idx].y, min_y, max_y)) {
+	case -1:
+	case 0:
+	  v_state=V_RENDERABLE;
+	  break;
+	case 1:
+	  break;
+	}	
+	break;
+      case V_RENDERABLE:
+	break;
+      }
+      switch(h_state) {
+      case H_UNSET:
+	switch(RANGE(ordered_verts[idx].x, min_x, max_x)) {
+	case -1:
+	  h_state=LEFT;
+	  break;
+	case 0:
+	  h_state=H_RENDERABLE;
+	  break;
+	case +1:
+	  h_state=RIGHT;
+	  break;
+	}
+	break;
+      case LEFT:
+	switch(RANGE(ordered_verts[idx].x, min_x, max_x)) {
+	case -1:
+	  break;
+	case 0:
+	case +1:
+	  h_state=H_RENDERABLE;
+	  break;
+	}
+	break;
+      case RIGHT:
+	switch(RANGE(ordered_verts[idx].x, min_x, max_x)) {
+	case -1:
+	case 0:
+	  h_state=H_RENDERABLE;
+	  break;
+	case +1:
+	  break;
+	}
+	break;
+      case H_RENDERABLE:
+	break;
+      }
+
+      if(v_state==V_RENDERABLE && h_state==H_RENDERABLE) {
+	renderable=true;
+      }
+    }    
+    LOG_INFO("%s iter: %i v1: %f, %f v2: %f, %f v3: %f, %f v4: %f, %f",
+	     renderable?"*":"", iter,
+	     ordered_verts[0].x, ordered_verts[0].y,
+	     ordered_verts[1].x, ordered_verts[1].y,
+	     ordered_verts[2].x, ordered_verts[2].y,
+	     ordered_verts[3].x, ordered_verts[3].y
+	     );
 
     draw_onIterRowCb *p_row_renderer;
     if(p_grad->on_x) {
@@ -1433,7 +1529,7 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
   draw_gradMarkDirty(p_grad, draw_gradsTrans(p_grad_agg, UINT_MAX, iter), &p_globals->canvas);
 }
 
-void draw_initGrad(
+void draw_initBlotGrad(
 		       draw_scanLog *p_log, 
 		       draw_grads *p_grad_agg,
 		       const draw_vert *p_last,
@@ -1444,20 +1540,69 @@ void draw_initGrad(
 		       ) {
   draw_recordFD(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
+  /*
   if(p_last!=NULL) {
     p_grad->last_mid=*p_last;
-
-    /* get the 2 unit vectors corresponding to the slope of the 2 segments
-     * add them
-     * the -ve reciprocal is the slope of the desired bisector
-     * the point connecting the 2 segments is the point on the bisector
-     */
-    
     p_grad->has_last_mid=true;
   } else {
     p_grad->has_last_mid=false;
   }
+  */
   p_grad->mid=*p_0;
+  
+  draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
+}
+
+void draw_initQuadGrad(
+		       draw_scanLog *p_log, 
+		       draw_grads *p_grad_agg,
+		       const draw_vert *p_last,
+		       const draw_vert *p_0, 
+		       const draw_vert *p_fd, 
+		       const uint32 iter,
+		       draw_globals *p_globals
+		       ) {
+  draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
+  p_grad->mid=*p_0;
+
+  //p_grad->bisect_has_last_mid=false;
+  //p_grad->has_bisector_normal=false;
+  if(p_last!=NULL) {
+    //p_grad->bisect_last_mid=*p_last;
+    //p_grad->bisect_has_last_mid=true;
+    if(p_0->x!=p_last->x) {
+      p_grad->fd_signed.x=-1;
+      p_grad->fd_signed.y=-(p_0->y-p_last->y)/(p_0->x-p_last->x);
+
+      //float32 mag=draw_mag(p_grad_segment_fd_signed);
+      //p_grad->segment_fd_signed.x=p_grad->segment_fd_signed.x/mag;
+      //p_grad->segment_fd_signed.y=p_grad->segment_fd_signed.y/mag;
+    } else {
+      p_grad->fd_signed.x=0;
+      if(p_0->x>=p_last->x) {
+	p_grad->fd_signed.y=1;
+      } else {
+	p_grad->fd_signed.y=-1;
+      }
+    }
+
+    /* get the 2 unit vectors corresponding to the slope of the 2 segments (saved to segment_fd_signed)
+     * add them
+     * the -ve reciprocal is the slope of the desired bisector
+     * the point connecting the 2 segments is the point on the bisector
+     */
+
+    LOG_ASSERT(iter>0, "if p_last is not NULL, iter should be >0, I think");
+    DO_ASSERT(p_grad->fd_recorded=true);
+    //uint32 last_iter=iter-1;
+    //draw_grad *p_last_grad=&p_grad_agg->p_iter_2_grad[last_iter];
+    //draw_vert bisector=draw_add(&p_grad->segment_fd_signed, &p_last_grad->segment_fd_signed);
+    //p_last_grad->bisector_normal=draw_norm(&bisector);
+    //p_last_grad->bisect_has_bisector_normal=true;
+  } else {
+    draw_recordFD(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
+  }
+  LOG_INFO("iter: %u fd_signed: %f, %f", iter, p_grad->fd_signed.x, p_grad->fd_signed.y);
   
   draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
 }
@@ -1471,7 +1616,7 @@ void draw_coreInitGrad(
 		       const uint32 iter,
 		       draw_globals *p_globals
 		       ) {
-  draw_initGrad(p_log, p_grad_agg, p_prev, p_0, p_fd, iter, p_globals);
+  draw_initQuadGrad(p_log, p_grad_agg, p_prev, p_0, p_fd, iter, p_globals);
   LOG_ASSERT(p_globals->null_vert.x==0 && p_globals->null_vert.y==0, "someone altered the null vert");
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
   draw_gradTranslatedFill(draw_gradsTrans(p_grad_agg, UINT_MAX, iter), p_grad, &p_grad->mid);
@@ -1552,7 +1697,7 @@ void draw_bezInit(draw_bez *p_bez, const float32 step, const draw_vert *p_0, con
   draw_quadStartFDGen(&p_bez->quad, step);
 }
 
-sint32 draw_curveIfPlot(
+draw_vert draw_curveIfPlot(
 			draw_curveIf *p_curve, 
 			draw_scanLog *p_log, 
 			draw_gradsIf *p_grad_agg,
@@ -1563,7 +1708,7 @@ sint32 draw_curveIfPlot(
 			draw_globals *p_globals
 			) {
   draw_onSegCb *p_on_seg_cb;
-  draw_vert *p_0=&p_pts[0], *p_1=&p_pts[1], *p_2=&p_pts[2];
+  draw_vert *p_0=&p_pts[0], *p_1=&p_pts[1], *p_2=&p_pts[2], fd;
   p_0=&p_pts[0];
   p_2=&p_pts[2];
   
@@ -1577,7 +1722,6 @@ sint32 draw_curveIfPlot(
   //LOG_INFO("start iter %u", p_log->row_start_iter);
   if(p_on_iter_cb) {
     (*p_on_iter_cb)(p_log, p_grad_agg, NULL, &f_x_t, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
-    //(*p_on_iter_cb)(p_log, p_grad_agg, NULL, &f_x_t, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
   }
   
   uint32 cur_dir;
@@ -1615,8 +1759,9 @@ sint32 draw_curveIfPlot(
   LOG_ASSERT(row_start_iter==max_iter, "row start iter: %u max iter %u", row_start_iter, max_iter);
 
   f_x_t=p_curve->p_next_cb(p_curve, p_globals);
+  fd=*p_curve->p_fd_cb(p_curve);
   if(p_on_iter_cb) {
-    (*p_on_iter_cb)(p_log, p_grad_agg, &last, p_2, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
+    (*p_on_iter_cb)(p_log, p_grad_agg, &last, p_2, &fd, row_start_iter, p_globals);
   }
   if((*p_on_seg_cb)(&last, p_2, p_on_pt_cb, &p_log->f, p_grad_agg, row_start_iter, p_globals)) {
     draw_setDir(&last, p_2, &cur_dir, p_globals);    
@@ -1625,11 +1770,11 @@ sint32 draw_curveIfPlot(
     draw_setDir(&last, p_2, &cur_dir, p_globals);    
   }
 
-  max_y[f_x_t.y>max_y[1]]=f_x_t.y;
-  return max_y[1];
+  //max_y[f_x_t.y>max_y[1]]=f_x_t.y;
+  return fd;
 }
 
-sint32 draw_plotBez(const float32 step,
+draw_vert draw_plotBez(const float32 step,
 		    draw_vert *p_pts, 
 		    draw_onPtCb *p_on_pt_cb, 
 		    draw_onIterCb *p_on_iter_cb, 
@@ -1802,8 +1947,12 @@ void draw_renderCoreDraw(draw_renderCore *p_core, draw_scanLog *p_log, draw_grad
     LOG_INFO("checking %p idx 8. %u", &(p_grad_agg->trans.p_iter_2_grad_trans[8]), p_grad_agg->trans.p_iter_2_grad_trans[8].idx);
   }
   */
-  draw_plotBez(p_core->step, p_core->spine, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_coreInitGrad, p_grad_agg), p_log, &p_grad_agg->grads_if, p_globals);
+  draw_vert last_tan=draw_plotBez(p_core->step, p_core->spine, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_coreInitGrad, p_grad_agg), p_log, &p_grad_agg->grads_if, p_globals);
   LOG_ASSERT(p_grad_agg->max_iter>0, "invalid no of iters");
+  draw_recordFD(p_log, p_grad_agg, &p_core->spine[2], &last_tan, p_grad_agg->max_iter, p_globals);
+  draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[p_grad_agg->max_iter];
+  p_grad->initialised=false;
+  draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
   draw_coreRender(p_log, p_grad_agg, p_grad_agg->max_iter, p_globals);
 }
 
@@ -2094,7 +2243,7 @@ void draw_blotInit(draw_blot *p_blot, draw_scanBrushLog *p_b, draw_globals *p_gl
 
     draw_scanLog log;
     draw_scanLogInit(&log, &render_core, p_b, p_globals);
-    draw_plotBez(render_core.step, pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_initGrad, p_grad_agg), &log, &p_grad_agg->grads_if, p_globals);
+    draw_plotBez(render_core.step, pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_initBlotGrad, p_grad_agg), &log, &p_grad_agg->grads_if, p_globals);
     draw_scanLogDestroy(&log);
 
     draw_coordToIter *p_coord_2_iter=draw_blotQuadrant2CoordToIter(p_blot, horiz, vert);
@@ -2632,7 +2781,7 @@ static sint8 *draw_test_vertNonReflexAng(void) {
   return 0;
 }
 
-void draw_completeQuadrant(
+void draw_lastTri(
 			   draw_scanLog *p_log,
 			   draw_gradReference *p_ref,
 			   const draw_vert *p_0,
@@ -2779,7 +2928,7 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
     draw_gradReferenceInit(&ref, draw_blotNumCoord2Iters(&p_stroke->brush.blot), p_coord_2_iters, p_0, initial_iter, q, max_iter, &initial_pt, p_trans->p_iter_2_grad_trans);
     //render bezier here from start -> ctrl -> end
     draw_plotBez(step, p_pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_triFillCb, &ref), &log, &ref.grads_if, p_globals);
-    draw_completeQuadrant(&log, &ref, &p_pts[2], width, p_globals);
+    draw_lastTri(&log, &ref, &p_pts[2], width, p_globals);
 
     draw_gradReferenceDestroy(&ref);
     draw_scanLogDestroy(&log);
@@ -2805,7 +2954,7 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
   draw_gradReferenceInit(&ref, draw_blotNumCoord2Iters(&p_stroke->brush.blot), p_coord_2_iters, p_0, initial_iter, q, max_iter, &initial_pt, p_trans->p_iter_2_grad_trans);
   //render bezier here from start -> ctrl -> end
   draw_plotBez(step, p_pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_triFillCb, &ref), &log, &ref.grads_if, p_globals);
-  draw_completeQuadrant(&log, &ref, &p_pts[2], width, p_globals);
+  draw_lastTri(&log, &ref, &p_pts[2], width, p_globals);
   draw_gradReferenceDestroy(&ref);
   draw_scanLogDestroy(&log);
 }

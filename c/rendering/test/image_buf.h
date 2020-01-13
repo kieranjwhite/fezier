@@ -24,6 +24,8 @@
 
 #define IMAGE_BUF_SCREEN_WIDTH 1600
 #define IMAGE_BUF_SCREEN_HEIGHT 2195
+//#define IMAGE_BUF_SCREEN_WIDTH 35
+//#define IMAGE_BUF_SCREEN_HEIGHT 30
 #define IMAGE_BUF_PIX_RATIO -1
 
 void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag);

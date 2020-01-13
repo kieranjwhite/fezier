@@ -1,0 +1,40 @@
+#+STARTUP: latexpreview
+* Bisectors of segments
+** There are 2 line segments from $(x_1,y_1)$ to $(x_2,y_2)$ and from $(x_2,y_2)$ to $(x_3,y_3)$ called $S_1$ and $S_2$ respectively. Parallel to these are segments $S_{1A}$, $S_{1B}$ (both parallel to $S_1$) and $S_{2A}$ and $S_{2B}$ (both parallel to $S_2$) where the perpendicular distance from all points on each of these segments to their respective parallel segment $S_1$ or $S_2$ is $d$.
+** The slopes of $S_1$ and $S_2$ are defined as:
+\begin{align*}
+m_1 &= \frac{y_2-y_1}{x_2-x_1} \\
+m_2 &= \frac{y_3-y_2}{x_3-x_2} \\
+\end{align*}
+** The equations of $S_{1A}$ and $S_{2A}$ (the segments to the same side of $S_1$ and $S_2$) are defined below. The equations of $S_{1B}$ and $S_{2B}$ are defined similarly but we won't elaborate further on these.
+\begin{align*}
+y &= m_1 \times x +c_1 \\
+y &= m_2 \times x +c_2
+\end{align*}
+*** TODO Identify which segment is on the same side as the other of the 2 original segments
+** We wish to identify where $S_{1A}$ and $S_{2A}$ intersect. Therefore the 2 $y$ s (and obviously $x$ s as well) are identifcal to each other:
+\begin{align*}
+\implies m_1 \times x +c_1 &=m_2 \times x +c_2 \\
+\implies c_1 - c_2 &= m_2 \times x - m_1 \times x \\
+\implies c_1 - c_2 &= x(m_2 - m_1) \\
+\implies x &= \frac{c_1-c_2}{m_2-m_1} \\
+\end{align*}
+** Next calculate $c_1$ and $c_2$ using $m_1$, $m_2$ and the known width of the stroke. 
+*** Original broken method
+**** Returning to our original line segments, consider first the line that passes through $(x_1, y_1)$ itself.
+ \begin{align*}
+ y &= m_1 \times x + c_1 \\
+ \implies y_1 &= m_1 \times x_1 + c_1 \\
+ \implies c_1 &= m_1 \times x_1 - y_1 \\
+ \implies c_1 &= \frac{y_2-y_1}{x_2-x_1} \times x_1 - y_1 \\
+ \end{align*}
+***** There's a mistake in the derivation of $c_1$ above
+**** Next generalise and calculate $c_{1x}$ for any line with the slope $m_1$. Assume stroke width is $w$.
+ \begin{align*}
+ c_{1x} &= c_1 + \frac{y_2-y_1}{x_2-x_1} \times x_1 - y_1 \\
+ \end{align*}
+*** 2nd broken attempt
+**** see c1x_boundary.svg
+*** 3rd attempt
+**** Assume we know the equation for the first segment that is parallel to $S_1$ and a distance of $d$ from it.
+***** $y=
