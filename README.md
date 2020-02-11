@@ -161,7 +161,7 @@ gcc -Wall -DHAVE_TYPEOF -DHAVE_BUILTIN_CHOOSE_EXPR -DHAVE_BUILTIN_TYPES_COMPATIB
 ./a.out
 </pre>
 
-The result of running the test harnes is the image below comprising
+The result of running the test harness is the image below comprising
 2109 quadratic Bezier curves:
 
 ![Test image](https://github.com/kieranjwhite/fezier/raw/master/notes/test_render.png)
