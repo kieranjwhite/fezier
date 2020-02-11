@@ -2,7 +2,7 @@
 A small, simple C library for rendering feathered Bézier curves.
 
 # Copyright
-Copyright 2015 Kieran White. This file is part of Fezier.
+Copyright 2020 Kieran White. This file is part of Fezier.
 
 This program is free software: you can redistribute it and/or modify
 it under the terms of the GNU General Public License as published by
