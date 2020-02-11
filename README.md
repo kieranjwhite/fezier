@@ -152,11 +152,19 @@ draw_globalsDestroy(G_p_globals);
 </pre>
 
 # Compiling and running the test harness
+
+Compile and run as follows:
+
 <pre>
 cd c/rendering/test
 gcc -Wall -DHAVE_TYPEOF -DHAVE_BUILTIN_CHOOSE_EXPR -DHAVE_BUILTIN_TYPES_COMPATIBLE_P -gdwarf-2 -g3 -std=c99 -Wstrict-prototypes test_render.c main.c image_buf.c ../draw.c ../../rtu.c -lm `pkg-config --cflags --libs sdl`
 ./a.out
 </pre>
+
+The result of running the test harnes is the image below comprising
+2109 quadratic Bezier curves:
+
+![Test image](https://github.com/kieranjwhite/fezier/raw/master/notes/test_render.png)
 
 # Contact details
 E-mail me at kieran.white@hourglassapps.com
