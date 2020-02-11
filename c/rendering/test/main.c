@@ -189,7 +189,6 @@ sint32 main(sint32 argc, char **argv)
     now.tv_nsec -= start.tv_nsec;
   }
   LOG_INFO("elapsed: %ld s %ld ns \n", now.tv_sec, now.tv_nsec);
-
   SDL_Flip(screen);
 
   while (!done)
@@ -253,5 +252,6 @@ sint32 main(sint32 argc, char **argv)
   }
   rtu_destroyDiv(p_globals->p_rtu);
   rtu_destroyATan(p_globals->p_rtu);
+  draw_destroy(p_globals);
   draw_globalsDestroy(p_globals);
 }

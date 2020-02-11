@@ -1,4 +1,4 @@
-/* Copyright 2015 Kieran White.
+/* Copyright 2020 Kieran White.
    This file is part of Fezier.
 
    This program is free software: you can redistribute it and/or modify
@@ -27,6 +27,12 @@
 #include "../ccan/typesafe_cb/typesafe_cb.h"
 #include "test/image_buf.h"
 
+uint32 largestOffset=0;
+uint32 largestOffsetCol=0;
+
+uint8 g_xy_2_quad[][2]={{2,3},{1,0}};
+sint8 g_on_x_and_quad_2_semi_quad[][4]={{1,2,5,6},{0,3,4,7}};
+
 bool draw_canvasSetup(draw_canvas *p_canvas, uint32 w, uint32 h, uint32* p_pixels) {
   p_canvas->p_bitmap=p_pixels;
   if(!p_canvas->p_bitmap) {
@@ -45,7 +51,7 @@ void draw_canvasResetDirty(draw_canvas *p_canvas) {
     draw_rectIntInit(&p_canvas->extantDirty);
 }
 
-void draw_init(const uint32 w, const uint32 h, const float32 devicePixelRatio, uint32 *p_pixels, draw_globals *p_globals) {
+bool draw_init(const uint32 w, const uint32 h, const float32 devicePixelRatio, uint32 *p_pixels, draw_globals *p_globals) {
   uint32 size=sizeof(uint32)*w*h;
   if(p_pixels) {
     rtu_memZero(p_pixels, size);
@@ -53,6 +59,22 @@ void draw_init(const uint32 w, const uint32 h, const float32 devicePixelRatio, u
   LOG_INFO("pix ratio: %f", devicePixelRatio);
   draw_canvasInit(&p_globals->canvas, w, h, devicePixelRatio);
   draw_canvasSetup(&p_globals->canvas, w, h, p_pixels);
+  p_globals->all_xs_pairs.p_y_2_starts=rtu_memAlloc(sizeof(sint32)*h);
+  p_globals->all_xs_pairs.p_y_2_ends=rtu_memAlloc(sizeof(sint32)*h);
+  if(p_globals->all_xs_pairs.p_y_2_starts!=NULL && p_globals->all_xs_pairs.p_y_2_ends!=NULL) {
+    return true;
+  } else {
+    return false;
+  }
+}
+
+void draw_destroy(draw_globals *p_globals) {
+  if(p_globals->all_xs_pairs.p_y_2_ends!=NULL) {
+    rtu_memFree(p_globals->all_xs_pairs.p_y_2_ends);
+  }
+  if(p_globals->all_xs_pairs.p_y_2_starts!=NULL) {
+    rtu_memFree(p_globals->all_xs_pairs.p_y_2_starts);
+  }
 }
 
 extern inline void draw_atOffset(uint32 pOffset, uint32 col, const draw_globals *p_globals);
@@ -66,20 +88,29 @@ extern inline void draw_onOffset(uint32 pOffset, uint32 col, const draw_globals 
 extern inline void draw_vertDot(const draw_vert *p_0, uint32 col, const draw_globals *p_globals);
 extern inline void draw_dot(uint32 x, uint32 y, uint32 col, const draw_globals *p_globals);
 extern inline draw_vert draw_copy(const draw_vert *p_0);
+extern inline void draw_swap(draw_vert *p_v0, draw_vert *p_v1);
 extern inline draw_vert draw_add(const draw_vert *p_v0, const draw_vert *p_v1);
+extern inline draw_vert64 draw_add64(const draw_vert *p_v0, const draw_vert64 *p_v1);
 extern inline draw_vert draw_neg(const draw_vert *p_v0);
 extern inline draw_vert draw_abs(const draw_vert *p_v0);
 extern inline draw_vert draw_diff(const draw_vert *p_v0, const draw_vert *p_v1);
+extern inline draw_vert64 draw_64diff(const draw_vert64 *p_v0, const draw_vert *p_v1);
+extern inline draw_vert64 draw_diff64(const draw_vert *p_v0, const draw_vert64 *p_v1);
 extern inline draw_vert draw_by(const draw_vert *p_v0, const float32 scalar);
+extern inline draw_vert64 draw_64by(const draw_vert64 *p_v0, const float32 scalar);
+extern inline draw_vert64 draw_by64(const draw_vert *p_v0, const float64 scalar);
 extern inline draw_vert draw_byOneByOne(const draw_vert *p_v0, const draw_vert *p_multiplier);
 extern inline draw_vert draw_divide(const draw_vert *p_v0, const float32 scalar);
 extern inline draw_vert draw_divideByUInt(const draw_vert *p_v0, const uint32 scalar, const draw_globals *p_globals);
 extern inline draw_vert draw_divideOneByOne(const draw_vert *p_v0, const draw_vert *p_divisor);
 extern inline float32 draw_mag(const draw_vert *p_vert);
-extern inline draw_vert draw_mean(const draw_vert *p_one, const draw_vert *p_two);
+extern inline float64 draw_mag64(const draw_vert *p_vert);
+extern inline draw_vert draw_mid(const draw_vert *p_one, const draw_vert *p_two);
 extern inline draw_vert draw_norm(const draw_vert *p_tan);
+extern inline draw_vert64 draw_norm64(const draw_vert64 *p_tan);
 extern inline draw_vert draw_fd2Norm(const draw_vert *p_fd, float32 width);
 extern inline draw_vert draw_fd2Tan(const draw_vert *p_fd, float32 width);
+extern inline draw_vert64 draw_fd2Tan64(const draw_vert *p_fd, float64 width);
 extern inline float32 draw_plotBezInitC_0(float32 fdd, float32 step);
 extern inline float32 draw_plotBezInitC_1(float32 p_0, float32 p_1, float32 p_2, float32 step);
 extern inline float32 draw_plotBezInitFDD(float32 p_0, float32 p_1, float32 p_2);
@@ -100,7 +131,7 @@ extern inline uint32 draw_largerPowerOf2(uint32 start, uint32 target);
 extern inline uint32 draw_scanLogPos2ConstIdx(const draw_scanBrushLog *p_b, const float32 pos);
 extern inline uint32 draw_pos2Idx(const draw_scanBrushLog *p_b, const float32 pos);
 extern inline uint32 draw_gradIdx2ConstIdx(const draw_grad *p_grad, const uint32 grad_idx);
-extern inline float32 draw_gradRow2NewSideM(const draw_grad *p_grad, const float32 row_side_m, const float32 x);
+//extern inline float32 draw_gradRow2NewSideM(const draw_grad *p_grad, const float32 row_side_m, const float32 x);
 extern inline uint32 draw_antiAlias(float32 coord, uint32 col, bool next_pixel);
 extern inline float32 draw_rangeDist(sint32 min, sint32 max, sint32 val);
 extern inline draw_vert* draw_quadNextFD(draw_quad *p_bez);
@@ -133,7 +164,8 @@ extern inline bool draw_gradTranslatedFill(draw_gradTranslated *p_grad_trans, co
 extern inline void draw_gradTranslatedInit(draw_gradTranslated *p_grad_trans, const draw_grad *p_grad, const draw_vert *p_mid);
 //extern inline bool draw_vertQuadLenientMatch(const draw_vert *p_fd, const sint32 horiz, const sint32 vert);
 extern inline float32 draw_euclideanDistSquared(const draw_vert *p_0, const draw_vert *p_1);
-extern inline sint32 draw_gradSideIncSgn4FD(const draw_grad *p_grad, const draw_vert *p_fd);
+extern inline float64 draw_64euclideanDistSquared64(const draw_vert64 *p_0, const draw_vert64 *p_1);
+//extern inline sint32 draw_gradSideIncSgn4FD(const draw_grad *p_grad, const draw_vert *p_fd);
 extern inline draw_vert draw_weightedMean(const draw_vert *p_one, const draw_vert *p_two, float32 t);
 extern inline void draw_dotScanRowLeftBnd(float32 x, float32 y, draw_scanFillLog *p_f, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals);
 extern inline void draw_dotScanRowRightBnd(float32 x, float32 y, draw_scanFillLog *p_f, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals);
@@ -143,7 +175,8 @@ extern inline bool draw_vertSim(const draw_vert *p_0, const draw_vert *p_1, cons
 extern inline void draw_canvasMarkDirty(draw_canvas *p_canvas, const draw_vert *p_vert);
 extern inline void draw_canvasMarkDirtyRect(draw_canvas *p_canvas, const draw_rect *p_new);
 extern inline draw_rect draw_boundingBox(const draw_vert *p_0, const draw_vert *p_delta);
-extern inline draw_rect draw_calcTerminalBox(const draw_vert *p_0, const draw_vert *p_fd, const float32 half_width);
+extern inline draw_rect64 draw_boundingBox64(const draw_vert *p_0, const draw_vert64 *p_delta);
+extern inline draw_rect64 draw_calcTerminalBox(const draw_vert *p_0, const draw_vert *p_fd, const float64 half_width);
 //extern inline bool draw_vertQuadNumMatch(const draw_vert *p_fd, const uint32 q);
 extern inline sint32 draw_quadrant2Horiz(const uint32 q);
 extern inline sint32 draw_quadrant2Vert(const uint32 quadrant);
@@ -178,10 +211,11 @@ extern inline uint32 draw_dirtyRight(draw_globals *p_globals, const uint32 idx);
 extern inline void draw_canvasMergeDirt(draw_canvas *p_canvas);
 extern inline void draw_strokeContinue(draw_stroke *p_stroke, const draw_vert *p_start, draw_globals *p_globals);
 extern inline float32 draw_gradATan(const draw_grad *p_grad, const draw_globals *p_globals);
-extern inline float32 draw_scanLogCheckAngle(draw_scanLog *p_log, const draw_grad *p_last_grad, const draw_grad *p_grad, const draw_globals *p_globals);
+extern inline float32 draw_scanLogGetAngle(const draw_scanLog *p_log, const sint32 ang_idx);
+extern inline void draw_scanLogAddAngle(draw_scanLog *p_log, const draw_grad *p_grad, const draw_globals *p_globals);
 extern inline draw_rectInt* draw_canvasDirty(draw_canvas *p_globals);
 extern inline draw_rectInt* draw_canvasExtantDirty(draw_canvas *p_globals);
-extern inline uint32 draw_renderCoreHeight(const draw_renderCore *p_render_core, const draw_scanFillLog *p_f);
+//extern inline uint32 draw_renderCoreHeight(const draw_renderCore *p_render_core, const draw_scanFillLog *p_f);
 extern inline void draw_brushInitInternal(draw_brush *p_brush, const uint32 col, const float32 breadth, const float32 blur_width, draw_globals *p_globals, const bool recalc_scaling);
 
 draw_globals draw_globalsInitialFields(void) {
@@ -238,8 +272,8 @@ void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h, cons
     mag<<=1;
   }
   
-  p_canvas->renderedW=p_canvas->w=w; //depending on the brush renderedW can differ from w if devicePixelRatio is <0 or is ==1.
-  p_canvas->renderedH=p_canvas->h=h; //depending on the brush renderedH can differ from h if devicePixelRatio is <0 or is ==1.
+  p_canvas->renderedW=p_canvas->w=w; //depending on the brush renderedW can differ from w if devicePixelRatio is <0 or is ==1. The function draw_canvasSetAndGetScalingIdx can change p_canvas->w and p_canvas->h to a value that is consistent with devicePixelRatio
+  p_canvas->renderedH=p_canvas->h=h; //depending on the brush renderedH can differ from h if devicePixelRatio is <0 or is ==1. The function draw_canvasSetAndGetScalingIdx can change p_canvas->w and p_canvas->h to a value that is consistent with devicePixelRatio
   LOG_INFO("pix ratio: %f", devicePixelRatio);
   p_canvas->devicePixelRatio=devicePixelRatio;
   p_canvas->scaling_idx=UINT_MAX;
@@ -533,12 +567,12 @@ inline float32 draw_rangeDist(sint32 min, sint32 max, sint32 val) {
   }
   return delta;
 }
-
+/*
 void draw_gradInitConsts(draw_grad *p_grad, const draw_vert *p_delta) {
   p_grad->c5=p_delta->x;
   p_grad->c6=p_delta->y;
 }
-
+*/
 void draw_iterRangeInit(draw_iterRange *p_it_range, const uint32 q, const uint32 iter) {
   p_it_range->q=q;
   p_it_range->iter=iter;
@@ -638,9 +672,24 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   LOG_ASSERT(seg.p_grad->on_x, "invalid grad: %u", seg.iter);
   sint32 x=seg.start_x;
   float32 bound_delta=(y-seg.p_anchor->y)*seg.p_grad->slope_recip;
-  float32 cen_x=(seg.p_anchor->x+bound_delta); //27/12/19 unsure why this is called cen_x -- it's just the starting x, probably evals to first_x and seg.start_x where first_x>=0
 
+  //(cen_x, y) is a point exactly in the middle of a stroke (ie where
+  //the opacity is at its max).
+  //
+  //The line segment between p_grad_trans->mid and the mid field of
+  //the previous iter's p_grad_trans has a slope of p_grad->fd_signed,
+  //which is what p_grad->slope_recip is derived from.
+  //
+  //p_grad_trans->mid has been assigned to seg.p_anchor in the call to
+  //draw_horizSegmentInit above.
+  //
+  //Therefore we have both the slope and a point on the line, and have
+  //now demonstrated how calculate any point on the line at a given y
+  //coordinate.
+  float32 cen_x=(seg.p_anchor->x+bound_delta);
+ 
   float32 pos=(x-cen_x)*seg.p_grad->default_pos_inc+p_b->w.half_width;  //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_b->w.width)
+  //float32 pos=0;
   uint32 idx=draw_pos2Idx(p_b, pos); //0 if feathered in the first half, 1 if not feathered, 2 if feathered in the 2nd half
   sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
   float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc;
@@ -699,20 +748,34 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
     //LOG_INFO("tracking and aborting new segment range on x");
     return;
   }
+  float32 y_coord=y; //TODO get rid of this intermediate float and ensure y is a const uint32
+  //if((seg.iter==39 || seg.iter==40) && y_coord==542) {
+  //  seg.start_x=408.336884;
+  //  y_coord=542.117737;
+  //}
   LOG_ASSERT(!seg.p_grad->on_x, "invalid grad: %u", seg.iter);
-  sint32 x=seg.start_x;
+  float32 x=seg.start_x; //TODO change back to sint32 from float32
   float32 bound_delta=(x-seg.p_anchor->x)*seg.p_grad->slope_recip;
-  float32 cen_y=(seg.p_anchor->y+bound_delta);
+  float32 cen_y=(seg.p_anchor->y+bound_delta); 
+  //LOG_INFO("y-cen_y: %f, y: %u, cen_y: %f, bound_delta: %f, anchor_y: %f", (y_coord-cen_y), y_coord, cen_y, bound_delta, seg.p_anchor->y);
+  
+  float32 pos=(y_coord-cen_y)*seg.p_grad->default_pos_inc; //since this is for !on_x, we know that we are at the very start or end of and iter, so any difference between start_y and the adjusted bound is due to the pixel boundary not aligning exactly with the iter, rather than use being in the middle of the iter
 
-  float32 pos=(y-cen_y)*seg.p_grad->default_pos_inc; //since this is for !on_x, we know that we are at the very start or end of and iter, so any difference between start_y and the adjusted bound is due to the pixel boundary not aligning exactly with the iter, rather than use being in the middle of the iter
-  float32 pos_dec=seg.p_grad->slope_recip*seg.p_grad->default_pos_inc;
+  float32 pos_dec=seg.p_grad->slope_recip*seg.p_grad->default_pos_inc; //we need to know how much pos increases for every increase of +1 in x. If p_grad->on_x==true that value is p_grad->default_pos_inc, but here p_grad->on_x==false
+
   if(pos_dec>0) {
     /* We must ensure that the pos starts low and increases because in
        the loops below we assume that idx does not decrease in value.
      */
-    pos=-pos;
     pos_dec=-pos_dec;
+    pos=-pos;
   }
+
+  //TODO get rid of the following conditional and move the pos=-pos line to the previous pos_dec conditional if it doesn't make a difference
+  //if(pos<0) {
+  //  pos=-pos;
+  //}
+
   pos+=p_b->w.half_width; //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_log->w.width)
   float32 idx=draw_pos2Idx(p_b, pos);
   sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
@@ -725,7 +788,7 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
       break;
     }
 
-    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity*p_b->opacity_frac))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
+    draw_dot(x, (uint32)y_coord, p_b->rgb | ((((uint32)((opacity>0)*opacity*p_b->opacity_frac))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
     pos-=pos_dec;
     idx+=pos>p_b->grad_consts.threshes[0];
     opacity+=inc_per_x;
@@ -749,8 +812,12 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
   for(; x<seg.end_x; x++) {
     LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
     DO_INFO(p_globals->draw_pixels++);
-  
-    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity*p_b->opacity_frac))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
+
+    uint32 col=p_b->rgb | ((((uint32)((opacity>0)*opacity*p_b->opacity_frac))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK);
+    //if(y==541 && (seg.iter==40 || seg.iter==41)) {
+    //  LOG_INFO("x: %f y: %u col: 0x%x", x, y, col);
+    //}
+    draw_dot(x, (uint32)y_coord, col, p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
     DO_ASSERT(pos-=pos_dec);
     opacity-=inc_per_x;
   }
@@ -1068,17 +1135,20 @@ void draw_gradInitFill(draw_grad *p_grad, const draw_strokeWidth *p_w, const dra
       circle with origin at its centre (w is radius): w^2=x^2+y^2
       intersection between the two (sub in x=y/m): y=sqrt(w^2/(1+(1/m)^2)).
 
-      Calculating default_pos_inc (using denom):
-      also see feathering_angles.svg (A) where on_x==true
+      Calculating default_pos_inc (using denom, where on_x==true):
+      also see feathering_angles.svg (A)
       default_pos_inc = w/(delta.x + (delta.y * (fd.x/fd.y)))
                       = (w*fd.y)/(delta.x*fd.y+delta.y*fd.x)
 
-		      
+      Calculating default_pos_inc (using denom, where on_x==false):
+      default_pos_inc = w/(delta.x * (fd.y/fd.x) + delta.y)
+                      = (w*fd.x)/(delta.x*fd.y + delta.y*fd.x)
      */
     float32 row_width_recip[2]={ p_w->width_recip };
     draw_vert delta;
     if(fd.y>fd.x) {
       p_grad->on_x=true; //the grad is perpendicular to the tangent (which has a slope of fd_signed)
+      p_grad->semi_quadrant=g_on_x_and_quad_2_semi_quad[1][p_grad->quadrant];
       if(p_grad->fd_signed.y!=0) {
 	float32 m=-(p_grad->fd_signed.x/p_grad->fd_signed.y); //-ve reciprocal of fd (since it's for a perpendicular line)
 	/*
@@ -1088,40 +1158,59 @@ void draw_gradInitFill(draw_grad *p_grad, const draw_strokeWidth *p_w, const dra
 	  =>x*x=(w*w)/(1+m*m)
 	*/
 	float32 delta_x=SQRT32(p_w->width_squared/(1+m*m));
-	delta.x=delta_x; 
-	delta.y=m*delta_x;
+        delta.x=delta_x; 
+	delta.y=m*delta_x; //sign of delta.y (and delta.x where
+			   //on_x==false) is irrelevant because of how
+			   //the fields are used below
       } else {
-	LOG_ASSERT(p_grad->fd_signed.x!=0, "null fd");
+	LOG_ASSERT(false, "fd_signed.y cannot be zero when fd.y>fd.x");
+	//LOG_ASSERT(p_grad->fd_signed.x!=0, "null fd");
 	//horizontal tangent => vertical draw_grad
-	delta.x=0;
-	delta.y=-(sint32)p_w->width*BSGN(p_grad->fd_signed.x);
+        delta.x=0;
+	delta.y=-(sint32)p_w->width*BSGN(p_grad->fd_signed.x); //TODO ensure sign of delta.y here == delta.y in the other arm of this condition -- see half_quadrants.jpg: correct signed is shown in the -,+ (or similar) pair in each half quadrant
       }
-      draw_gradInitConsts(p_grad, &delta);
+      //draw_gradInitConsts(p_grad, &delta);
       denom=((delta.x*p_fd->y)+(ABSF(delta.y)*p_fd->x));
 
+      p_grad->half_delta=draw_by(&delta, 0.5);
       p_grad->slope_recip=p_fd_signed->y!=0?p_fd_signed->x/p_fd_signed->y:0;
-
       row_width_recip[1]=p_fd->y/denom;
     } else {
       p_grad->on_x=false;
+      p_grad->semi_quadrant=g_on_x_and_quad_2_semi_quad[0][p_grad->quadrant];
       if(p_grad->fd_signed.x!=0) {
 	float32 m_recip=-(p_grad->fd_signed.y/p_grad->fd_signed.x);
 	float32 delta_y=SQRT32(p_w->width_squared/(1+m_recip*m_recip));
-	delta.x=delta_y*m_recip;
+        delta.x=delta_y*m_recip;
 	delta.y=delta_y;
       } else {
-	LOG_ASSERT(p_grad->fd_signed.y!=0, "null fd");
+	//fd_signed.x==0 && fd_signed.y==0
+	LOG_ASSERT(false, "null fd");
+	//LOG_ASSERT(p_grad->fd_signed.y!=0, "null fd");
 	//vertical tangent => horizontal draw_grad
-	delta.x=-(sint32)p_w->width*BSGN(p_grad->fd_signed.y);
+        delta.x=-(sint32)p_w->width*BSGN(p_grad->fd_signed.y); //ie a -ve number, TODO ensure sign of delta.x here == delta.x in the other arm of this condition -- see half_quadrants.jpg: correct signed is shown in the -,+ (or similar) pair in each half quadrant
 	delta.y=0;
       }
-      draw_gradInitConsts(p_grad, &delta);
+      //the signs of the fields in delta are significant because of this draw_gradInitConsts invocation
+      //draw_gradInitConsts(p_grad, &delta);
+
       denom=((ABSF(delta.x)*p_fd->y)+(delta.y*p_fd->x));
 
+      if(p_grad->semi_quadrant==1 || p_grad->semi_quadrant==5) {
+	//Ensures half_delta.x of all semi_quadrants to have the same sign,
+	//but this isn't really necesssary anymore.
+	//Semi quadrants 1 and 5 are the only ones where the half_delta.x is -ve,
+	//so we get its negative instead by multiplying by -0.5.
+	p_grad->half_delta=draw_by(&delta, -0.5);
+      } else { 
+	p_grad->half_delta=draw_by(&delta, 0.5);
+      }
+      
       p_grad->slope_recip=p_fd_signed->x!=0?p_fd_signed->y/p_fd_signed->x:0;
       row_width_recip[1]=p_fd->x/denom;
     }
-    p_grad->half_delta=draw_by(&delta, 0.5);
+    //p_grad->half_delta=draw_by(&delta, 0.5);
+
     p_grad->default_pos_inc=p_w->width*row_width_recip[denom!=0];
     LOG_ASSERT(p_grad->default_pos_inc>=(0-DRAW_FUZZ_FACTOR) && p_grad->default_pos_inc<=(1+DRAW_FUZZ_FACTOR), "out of range default_pos_inc: %f", p_grad->default_pos_inc);
 
@@ -1169,23 +1258,6 @@ void draw_gradConstsInit(draw_gradConsts *p_consts, const draw_strokeWidth *p_w)
 
 }
 
-void draw_recordFD(
-		       draw_scanLog *p_log, 
-		       draw_grads *p_grad_agg,
-		       const draw_vert *p_0, 
-		       const draw_vert *p_fd, 
-		       const uint32 iter,
-		       draw_globals *p_globals
-		   ) {
-  if(!p_0) {
-    return;
-  }
-  draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
-  p_grad->fd_signed=*p_fd;
-  DO_ASSERT(p_grad->fd_recorded=true);
-  return;
-}
-
 uint32 draw_gradReferenceMaxIter(draw_gradReference *p_grad_ref) {
   return draw_coordToIterMaxIter(&p_grad_ref->p_coord_2_iters[0]);
 }
@@ -1208,18 +1280,25 @@ draw_range draw_vertsTopAndBottomIdxs(const draw_vert verts[], const uint32 num_
   return result;
 }
 
-draw_range draw_scanFillLogStartScan(draw_scanFillLog *p_f, const draw_vert verts[], const uint32 num_verts) {
+draw_range draw_scanFillLogStartScan(draw_scanFillLog *p_f, const draw_vert verts[], const uint32 num_verts, const draw_globals *p_globals) {
+  LOG_ASSERT(p_globals->all_xs_pairs.p_y_2_starts, "uninitialised starts array");
+  LOG_ASSERT(p_globals->all_xs_pairs.p_y_2_ends, "uninitialised ends array");
+  p_f->xs_pairs.p_y_2_starts=p_globals->all_xs_pairs.p_y_2_starts;
+  p_f->xs_pairs.p_y_2_ends=p_globals->all_xs_pairs.p_y_2_ends;
+
   draw_range y_bnds_idxs=draw_vertsTopAndBottomIdxs(verts, num_verts);
   //LOG_INFO("y bnds idxs: start: %i end: %i", y_bnds_idxs.start, y_bnds_idxs.end);
-  uint32 min_y_idx=y_bnds_idxs.start;
-  sint32 start_y=MAX(verts[min_y_idx].y-(p_f->min_y+1), 0);
-  
-  if(p_f->size>start_y) {
-    LOG_ASSERT(start_y>=0 && start_y<=p_f->size, "out of range start_y: %i", start_y);
-    rtu_memSet(p_f->xs_pairs.p_y_2_starts+start_y, INT_MAX, p_f->size-start_y);
-    rtu_memSet(p_f->xs_pairs.p_y_2_ends+start_y, INT_MIN, p_f->size-start_y);
-    //rtu_memSet(p_f->xs_pairs.p_y_2_starts, INT_MAX, p_f->size);
-    //rtu_memSet(p_f->xs_pairs.p_y_2_ends, INT_MIN, p_f->size);
+
+  uint32 min_y_idx=y_bnds_idxs.start, max_y_idx=y_bnds_idxs.end;
+  uint32 start_y=MAX(verts[min_y_idx].y, 0);
+  sint32 after_end_y=MIN(verts[max_y_idx].y+1, p_globals->canvas.h);
+  //uint32 rows=after_end_y-start_y;
+
+  if(after_end_y>(sint32)start_y) {
+    uint32 rows=after_end_y-start_y;
+    LOG_ASSERT(rows+start_y<=p_globals->canvas.h, "initialising mem that is out of bounds");
+    rtu_memSet(p_f->xs_pairs.p_y_2_starts+start_y, INT_MAX, rows);
+    rtu_memSet(p_f->xs_pairs.p_y_2_ends+start_y, INT_MIN, rows);
   }
   
   return y_bnds_idxs;
@@ -1227,7 +1306,7 @@ draw_range draw_scanFillLogStartScan(draw_scanFillLog *p_f, const draw_vert vert
 
 draw_range draw_scanFillLogScan(draw_scanFillLog *p_f, const draw_vert verts[], const uint32 num_verts, draw_globals *p_globals) {
   LOG_ASSERT(num_verts>0, "invalid num vert %u", num_verts);
-  draw_range result=draw_scanFillLogStartScan(p_f, verts, num_verts);
+  draw_range result=draw_scanFillLogStartScan(p_f, verts, num_verts, p_globals);
 
   uint32 last_vert=num_verts-1;
   for(uint32 idx=0; idx<last_vert; idx++) {
@@ -1241,9 +1320,8 @@ draw_range draw_scanFillLogScan(draw_scanFillLog *p_f, const draw_vert verts[], 
 
 void draw_scanLogFill(draw_scanLog *p_log, const draw_vert verts[], const uint32 num_verts, draw_globals *p_globals, draw_onIterRowCb *p_row_renderer, void *p_iter_info) {
   LOG_ASSERT(num_verts>0, "invalid number of verts: %u", num_verts);
+  /*
   if(p_log->f.size==0) {
-    //LOG_INFO("tracking and size==0");
-
     DO_ASSERT(draw_canvas *p_canvas=&p_globals->canvas);
     DO_ASSERT(uint32 h=draw_canvasHeight(p_canvas));
     DO_ASSERT(uint32 w=draw_canvasWidth(p_canvas));
@@ -1262,41 +1340,37 @@ void draw_scanLogFill(draw_scanLog *p_log, const draw_vert verts[], const uint32
 							 )), "size should not be zero");
     return;
   }
-
+  */
+  
   draw_range y_bnds_idxs=draw_scanFillLogScan(&p_log->f, verts, num_verts, p_globals);
   uint32 min_y_idx=y_bnds_idxs.start, max_y_idx=y_bnds_idxs.end;
 
-  sint32 start_y=verts[min_y_idx].y-p_log->f.min_y;
-  sint32 end_y=verts[max_y_idx].y-p_log->f.min_y;
-  //LOG_INFO("ys: %f, %f, %f", verts[0].y, verts[1].y, verts[2].y);
-  sint32 y=verts[min_y_idx].y-(verts[min_y_idx].y<0);
-  uint32 bottommost=(draw_canvasHeight(&p_globals->canvas)-p_log->f.min_y)-1;
-  //LOG_ASSERT(IMPLIES(p_log->f.size==0, end_y<=start_y), "the loop below should be incur any iterations. start_y: %i end_y: %i", start_y, end_y);
-  //LOG_INFO("y: %u min_y_idx: %u, max_y_idx: %u start_y idx: %i, end_y idx: %i", y, min_y_idx, max_y_idx, start_y, end_y);
-  for(sint32 y_idx=start_y; y_idx<=end_y; y_idx++) {
-    if(y_idx<0 || y_idx>bottommost) {
-      y++;
-      //LOG_INFO("tracking and skipping row. y: %i bottommost %u", y_idx, bottommost);
+  sint32 start_y=verts[min_y_idx].y;
+  sint32 end_y=verts[max_y_idx].y;
+
+  //sint32 y=verts[min_y_idx].y-(verts[min_y_idx].y<0);
+  uint32 bottommost=draw_canvasHeight(&p_globals->canvas)-1;
+  for(sint32 y=start_y; y<=end_y; y++) {
+    if(y<0 || y>bottommost) {
       continue;
     }
-    if(p_log->f.xs_pairs.p_y_2_starts[y_idx]<=p_log->f.xs_pairs.p_y_2_ends[y_idx]) {
-      (p_row_renderer)(p_log->p_b, p_log->f.xs_pairs.p_y_2_starts[y_idx], p_log->f.xs_pairs.p_y_2_ends[y_idx]+1, y, p_globals, p_iter_info);
+    if(p_log->f.xs_pairs.p_y_2_starts[y]<=p_log->f.xs_pairs.p_y_2_ends[y]) {
+      (p_row_renderer)(p_log->p_b, p_log->f.xs_pairs.p_y_2_starts[y], p_log->f.xs_pairs.p_y_2_ends[y]+1, y, p_globals, p_iter_info);
     } else {
-      //LOG_INFO("tracking and bound isn't set.");
+
       //one of our bounds haven't been set; how is this possible; shouldn't draw_scanFillLogScan have set all bounds we encounter here? TODO
-      if(p_log->f.xs_pairs.p_y_2_ends[y_idx]!=INT_MIN) {
+      if(p_log->f.xs_pairs.p_y_2_ends[y]!=INT_MIN) {
 	(p_row_renderer)(p_log->p_b, 
-		       p_log->f.xs_pairs.p_y_2_ends[y_idx], 
-		       p_log->f.xs_pairs.p_y_2_ends[y_idx]+1, 
+		       p_log->f.xs_pairs.p_y_2_ends[y], 
+		       p_log->f.xs_pairs.p_y_2_ends[y]+1, 
 			 y, p_globals, p_iter_info);
-      } else if(p_log->f.xs_pairs.p_y_2_starts[y_idx]!=INT_MAX) {
+      } else if(p_log->f.xs_pairs.p_y_2_starts[y]!=INT_MAX) {
 	(p_row_renderer)(p_log->p_b, 
-		       p_log->f.xs_pairs.p_y_2_starts[y_idx], 
-		       p_log->f.xs_pairs.p_y_2_starts[y_idx]+1, 
+		       p_log->f.xs_pairs.p_y_2_starts[y], 
+		       p_log->f.xs_pairs.p_y_2_starts[y]+1, 
 			 y, p_globals, p_iter_info);
       }
     }
-    y++;
   }
 }
 
@@ -1326,6 +1400,7 @@ void draw_triNow(
     p_row_renderer=draw_rowNewSegmentRangeOnY;
   }
   
+  //draw_scanFillLogInit(&p_log->f, verts, p_globals);
   draw_scanLogFill(p_log, verts, 3, p_globals, p_row_renderer, &p_grad_ref->grads_if);
     
   p_grad_ref->last_iter=iter;
@@ -1374,27 +1449,77 @@ bool draw_fillIter(draw_grad *p_grad, draw_gradTranslated *p_grad_trans, const d
 }
 */
 
-void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, draw_globals *p_globals) {
-  draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
-  if(iter>0) {
-    uint32 last_iter=iter-1;
-    draw_grad *p_last_grad=&p_grad_agg->p_iter_2_grad[last_iter];
-    draw_vert verts[4]={ 
-      draw_diff(&p_last_grad->mid, &p_last_grad->half_delta),
-      draw_add(&p_last_grad->mid, &p_last_grad->half_delta),
-      draw_add(&p_grad->mid, &p_grad->half_delta),
-      draw_diff(&p_grad->mid, &p_grad->half_delta),
+uint32 debug_cols[]={0xff000000, 0xffbf0000, 0xff00bf00, 0x000000bf, 0xff3f0000, 0xff003f00, 0xff00003f, 0xffffffff};
+
+//changes p_verts[2], p_verts[3] and p_last_grad->half_delta
+void draw_updateWithVertIntersection(draw_grad *p_last_grad, draw_grad *p_grad, draw_vert *p_verts, const float32 last_grad_m, const float32 last_grad_c) {
+  float32 grad_m=p_grad->fd_signed.y/p_grad->fd_signed.x;
+  if(grad_m!=last_grad_m) {
+    //float32 grad_c=rtu_lineC(p_grad->mid.x, p_grad->mid.y, grad_m);
+    
+    draw_vert grad_verts[2]={
+			     draw_add(&p_grad->mid, &p_grad->half_delta),
+			     draw_diff(&p_grad->mid, &p_grad->half_delta),
     };
-    /*
-    if((p_grad->mid.y<30 || p_last_grad->mid.y<30) && (verts[0].y<0 || verts[1].y<0 || verts[2].y<0 || verts[3].y<0)) {
-      G_track=true;
+    
+    sint32 sideOfV3=draw_sideOfLine(last_grad_m, last_grad_c, &p_verts[3]);
+    sint32 sideOfGV0=draw_sideOfLine(last_grad_m, last_grad_c, &grad_verts[0]);
+    if(sideOfV3!=sideOfGV0) {
+      draw_swap(&p_verts[3], &p_verts[2]);
     }
-    */
+    p_verts[3]=draw_lineIntersection(&grad_verts[0], grad_m, &p_verts[3], last_grad_m);
+    p_last_grad->half_delta=draw_diff(&p_verts[3], &p_last_grad->mid);
+    p_verts[2]=draw_diff(&p_last_grad->mid, &p_last_grad->half_delta);
+  }
+}
 
-    //draw_dot(verts[2].x, verts[2].y, 0xffffffff, p_globals);
-    //draw_dot(verts[3].x, verts[3].y, 0xffffffff, p_globals);
+void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, draw_globals *p_globals) {
+  if(iter<=1 && iter<=p_grad_agg->max_iter) {
+    draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
+    draw_scanLogAddAngle(p_log, p_grad, p_globals);
+  } else
+  if(iter>1) {
+    uint32 last_iter=iter-1, before_last_iter=iter-2;
 
-    if(p_log->f.highly_acute && draw_scanLogCheckAngle(p_log, p_last_grad, p_grad, p_globals)>PI_OVER_EIGHT && draw_euclideanDistSquared(&p_grad->mid, &p_last_grad->mid)<=1) {
+    draw_grad *p_last_grad=&p_grad_agg->p_iter_2_grad[last_iter];
+    draw_grad *p_before_last_grad=&p_grad_agg->p_iter_2_grad[before_last_iter];
+
+    draw_vert verts[4]={ 
+			draw_diff(&p_before_last_grad->mid, &p_before_last_grad->half_delta),
+			draw_add(&p_before_last_grad->mid, &p_before_last_grad->half_delta),
+			draw_diff(&p_last_grad->mid, &p_last_grad->half_delta),
+			draw_add(&p_last_grad->mid, &p_last_grad->half_delta),
+    };
+
+    DO_ASSERT(float32 last_normal_m=-p_last_grad->fd_signed.x/p_last_grad->fd_signed.y);
+    DO_ASSERT(float32 last_normal_c=rtu_lineC(p_last_grad->mid.x, p_last_grad->mid.y, last_normal_m));
+
+    DO_ASSERT(sint32 zerothYDist=ABSF(draw_yDistAboveLine(last_normal_m, last_normal_c, &verts[0])));
+    DO_ASSERT(sint32 firstYDist=ABSF(draw_yDistAboveLine(last_normal_m, last_normal_c, &verts[1])));
+    DO_ASSERT(sint32 secondYDist=ABSF(draw_yDistAboveLine(last_normal_m, last_normal_c, &verts[2])));
+    DO_ASSERT(sint32 thirdYDist=ABSF(draw_yDistAboveLine(last_normal_m, last_normal_c, &verts[3])));
+
+    LOG_ASSERT(zerothYDist>=thirdYDist, "0th vertex is closer to last_grad normal than the 3d");
+    LOG_ASSERT(firstYDist>=secondYDist, "1st vertex is closer to last_grad normal than the 2nd");
+
+    if(iter<=p_grad_agg->max_iter) {
+      draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
+      draw_scanLogAddAngle(p_log, p_grad, p_globals);
+      if(draw_scanLogGetAngle(p_log, -1)>PI_OVER_2000) {
+	float32 last_grad_m=p_last_grad->fd_signed.y/p_last_grad->fd_signed.x;
+	float32 last_grad_c=rtu_lineC(p_last_grad->mid.x, p_last_grad->mid.y, last_grad_m);
+	draw_updateWithVertIntersection(p_last_grad, p_grad, verts, last_grad_m, last_grad_c);
+      }
+    }
+
+    if(
+       ((verts[0].x<verts[1].x)!=(verts[3].x<verts[2].x)) ||
+       ((verts[0].y<verts[1].y)!=(verts[3].y<verts[2].y))
+       ) {
+      draw_swap(&verts[3], &verts[2]);
+    }
+
+    if(p_log->highly_acute && draw_scanLogGetAngle(p_log, -2)>0.2 && draw_euclideanDistSquared(&p_last_grad->mid, &p_before_last_grad->mid)<=1) {
       /* We filter out instance based on distance as where 2
        * successive draw_grads have a gap between their mid vertices,
        * as just rendering a blot at one mid (instead of a quad
@@ -1408,125 +1533,48 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
        * perpendicular, but are also on a straight line. TODO
        * 
        */
-
-      draw_blotContinue(&p_grad->mid, &p_grad->fd_signed, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
+      draw_blotContinue(&p_last_grad->mid, &p_last_grad->fd_signed, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
       //LOG_INFO("tracking and blotting.");
       return;
     }
 
-    draw_vert ordered_verts[4]={ verts[0], verts[3], verts[2], verts[1] };
-    if(p_last_grad->on_x!=p_grad->on_x && SGN(p_grad->fd_signed.x*p_grad->fd_signed.y)==1) {
-      ordered_verts[1]=verts[2];
-      ordered_verts[2]=verts[3];
-      ordered_verts[3]=verts[1];
-    }
-
-    sint32 min_x=17, max_x=17, min_y=14, max_y=14;
-    enum {V_UNSET, ABOVE, BELOW, V_RENDERABLE} v_state=V_UNSET;
-    enum {H_UNSET, LEFT, RIGHT, H_RENDERABLE} h_state=H_UNSET;
-    bool renderable=false;
-    for(int idx=0; idx<=3; idx++) {
-      switch(v_state) {
-      case V_UNSET:
-	switch(RANGE(ordered_verts[idx].y, min_y, max_y)) {
-	case -1:
-	  v_state=ABOVE;
-	  break;
-	case 0:
-	  v_state=V_RENDERABLE;
-	  break;
-	case 1:
-	  v_state=BELOW;
-	  break;
-	}
-	break;
-      case ABOVE:
-	switch(RANGE(ordered_verts[idx].y, min_y, max_y)) {
-	case -1:
-	  break;
-	case 0:
-	case 1:
-	  v_state=V_RENDERABLE;
-	  break;
-	}	
-	break;
-      case BELOW:
-	switch(RANGE(ordered_verts[idx].y, min_y, max_y)) {
-	case -1:
-	case 0:
-	  v_state=V_RENDERABLE;
-	  break;
-	case 1:
-	  break;
-	}	
-	break;
-      case V_RENDERABLE:
-	break;
-      }
-      switch(h_state) {
-      case H_UNSET:
-	switch(RANGE(ordered_verts[idx].x, min_x, max_x)) {
-	case -1:
-	  h_state=LEFT;
-	  break;
-	case 0:
-	  h_state=H_RENDERABLE;
-	  break;
-	case +1:
-	  h_state=RIGHT;
-	  break;
-	}
-	break;
-      case LEFT:
-	switch(RANGE(ordered_verts[idx].x, min_x, max_x)) {
-	case -1:
-	  break;
-	case 0:
-	case +1:
-	  h_state=H_RENDERABLE;
-	  break;
-	}
-	break;
-      case RIGHT:
-	switch(RANGE(ordered_verts[idx].x, min_x, max_x)) {
-	case -1:
-	case 0:
-	  h_state=H_RENDERABLE;
-	  break;
-	case +1:
-	  break;
-	}
-	break;
-      case H_RENDERABLE:
-	break;
-      }
-
-      if(v_state==V_RENDERABLE && h_state==H_RENDERABLE) {
-	renderable=true;
-      }
-    }    
-    LOG_INFO("%s iter: %i v1: %f, %f v2: %f, %f v3: %f, %f v4: %f, %f",
-	     renderable?"*":"", iter,
-	     ordered_verts[0].x, ordered_verts[0].y,
-	     ordered_verts[1].x, ordered_verts[1].y,
-	     ordered_verts[2].x, ordered_verts[2].y,
-	     ordered_verts[3].x, ordered_verts[3].y
+    /*
+    DO_INFO(float32 prev_ang=draw_scanLogGetAngle(p_log, -2));
+    DO_INFO(float32 this_ang=draw_scanLogGetAngle(p_log, -1));
+    LOG_INFO("%s last iter: %i before last: %f, %f last mid: %f, %f angs: %f, %f v1: %f, %f v2: %f, %f v3: %f, %f v4: %f, %f",
+	     this_ang>PI_OVER_2000?"":"straight", last_iter, 
+	     p_before_last_grad->mid.x, p_before_last_grad->mid.y,
+	     p_last_grad->mid.x, p_last_grad->mid.y,
+	     prev_ang,
+	     this_ang,
+	     verts[0].x, verts[0].y,
+	     verts[1].x, verts[1].y,
+	     verts[2].x, verts[2].y,
+	     verts[3].x, verts[3].y
 	     );
-
+    */
     draw_onIterRowCb *p_row_renderer;
-    if(p_grad->on_x) {
+    if(p_last_grad->on_x) {
       p_row_renderer=draw_rowNewSegmentRangeOnX;
     } else {
       p_row_renderer=draw_rowNewSegmentRangeOnY;
     }
-    draw_gradsSetIterRange(p_grad_agg, UINT_MAX, iter);
-    
-    draw_scanLogFill(p_log, ordered_verts, 4, p_globals, p_row_renderer, &p_grad_agg->grads_if);
-  } else {
-    p_log->f.last_ang=draw_gradATan(p_grad, p_globals);
+    draw_gradsSetIterRange(p_grad_agg, UINT_MAX, last_iter);
+    //if(last_iter>=38 && last_iter<=39) {
+      draw_scanLogFill(p_log, verts, 4, p_globals, p_row_renderer, &p_grad_agg->grads_if);
+      //}
+    draw_gradMarkDirty(p_last_grad, draw_gradsTrans(p_grad_agg, UINT_MAX, last_iter), &p_globals->canvas);
   }
-  
-  draw_gradMarkDirty(p_grad, draw_gradsTrans(p_grad_agg, UINT_MAX, iter), &p_globals->canvas);
+}
+
+inline static draw_quadIdx draw_vector2QuadIdx(const draw_vert *p_fd_signed) {
+  draw_quadIdx idx={ .x_idx=p_fd_signed->x>=0, .y_idx=p_fd_signed->y>=0 };
+  return idx;
+}
+
+inline static draw_quadIdx draw_pts2QuadIdx(const draw_vert *p_last, const draw_vert *p_0) {
+  draw_vert delta=draw_diff(p_0,p_last);
+  return draw_vector2QuadIdx(&delta);
 }
 
 void draw_initBlotGrad(
@@ -1538,8 +1586,10 @@ void draw_initBlotGrad(
 		       const uint32 iter,
 		       draw_globals *p_globals
 		       ) {
-  draw_recordFD(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
+  draw_quadIdx qi=draw_vector2QuadIdx(p_fd);
+  p_grad->quadrant=g_xy_2_quad[qi.x_idx][qi.y_idx];
+  draw_recordFD(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
   /*
   if(p_last!=NULL) {
     p_grad->last_mid=*p_last;
@@ -1549,7 +1599,7 @@ void draw_initBlotGrad(
   }
   */
   p_grad->mid=*p_0;
-  
+  p_grad->quadrant=0;
   draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
 }
 
@@ -1564,14 +1614,24 @@ void draw_initQuadGrad(
 		       ) {
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
   p_grad->mid=*p_0;
-
+  draw_quadIdx quadIdx;
   //p_grad->bisect_has_last_mid=false;
   //p_grad->has_bisector_normal=false;
+  /*
+  if(iter==p_grad_agg->max_iter) {
+    draw_recordFD(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
+    //p_grad->fd_signed.x=-1;
+    //p_grad->fd_signed.y=-(p_fd->y/p_fd->x);
+    quadIdx=draw_vector2QuadIdx(p_fd);
+    //DO_ASSERT(p_grad->fd_recorded=true);
+    } else */
   if(p_last!=NULL) {
     //p_grad->bisect_last_mid=*p_last;
     //p_grad->bisect_has_last_mid=true;
+    quadIdx=draw_pts2QuadIdx(p_last, p_0);
     if(p_0->x!=p_last->x) {
       p_grad->fd_signed.x=-1;
+      //LOG_INFO("x delta: %f, y_delta: %f p_last: %f, %f, p_1: %f, %f", (p_0->y-p_last->y), (p_0->x-p_last->x), p_last->x, p_last->y, p_0->x, p_0->y)
       p_grad->fd_signed.y=-(p_0->y-p_last->y)/(p_0->x-p_last->x);
 
       //float32 mag=draw_mag(p_grad_segment_fd_signed);
@@ -1579,11 +1639,7 @@ void draw_initQuadGrad(
       //p_grad->segment_fd_signed.y=p_grad->segment_fd_signed.y/mag;
     } else {
       p_grad->fd_signed.x=0;
-      if(p_0->x>=p_last->x) {
-	p_grad->fd_signed.y=1;
-      } else {
-	p_grad->fd_signed.y=-1;
-      }
+      p_grad->fd_signed.y=1;
     }
 
     /* get the 2 unit vectors corresponding to the slope of the 2 segments (saved to segment_fd_signed)
@@ -1601,8 +1657,10 @@ void draw_initQuadGrad(
     //p_last_grad->bisect_has_bisector_normal=true;
   } else {
     draw_recordFD(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
+    quadIdx=draw_vector2QuadIdx(p_fd);
   }
-  LOG_INFO("iter: %u fd_signed: %f, %f", iter, p_grad->fd_signed.x, p_grad->fd_signed.y);
+  p_grad->quadrant=g_xy_2_quad[quadIdx.x_idx][quadIdx.y_idx];
+  //LOG_INFO("iter: %u fd_signed: %f, %f, half_delta: %f, %f", iter, p_grad->fd_signed.x, p_grad->fd_signed.y, p_grad->half_delta.x, p_grad->half_delta.y);
   
   draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
 }
@@ -1621,7 +1679,6 @@ void draw_coreInitGrad(
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
   draw_gradTranslatedFill(draw_gradsTrans(p_grad_agg, UINT_MAX, iter), p_grad, &p_grad->mid);
   draw_coreRender(p_log, p_grad_agg, iter, p_globals);
-
 }
 
 draw_vert draw_bezNext(draw_bez *p_bez, const draw_globals *p_globals) {
@@ -1716,7 +1773,8 @@ draw_vert draw_curveIfPlot(
 
   (p_curve->p_init_cb)(p_curve, step, p_0, p_1, p_2, p_globals);
   //LOG_INFO("args: p_0: %f, %f \tp_1: %f, %f \tp_2: %f, %f", p_0->x, p_0->y, p_1->x, p_1->y, p_2->x, p_2->y);
-  draw_vert f_x_t=p_curve->p_fxt_cb(p_curve), last=p_curve->p_fxt_cb(p_curve);
+  draw_vert f_x_t=p_curve->p_fxt_cb(p_curve), quantised_last=p_curve->p_fxt_cb(p_curve);
+  draw_vert last=quantised_last;
   uint32 row_start_iter=0;
 
   //LOG_INFO("start iter %u", p_log->row_start_iter);
@@ -1727,7 +1785,7 @@ draw_vert draw_curveIfPlot(
   uint32 cur_dir;
   draw_setDDir(&p_globals->draw_origin, p_curve->p_fd_0_cb(p_curve), &cur_dir, p_globals);
 
-  sint32 max_y[2]={0, last.y}; //max will be stored in max[1], max[0] won't be read, ever
+  sint32 max_y[2]={0, quantised_last.y}; //max will be stored in max[1], max[0] won't be read, ever
   uint32 next_iter=row_start_iter+1;
   uint32 max_iter=(p_grad_agg->p_max_iter_cb)(p_grad_agg);
   //LOG_INFO("draw_curveIfPlot. max_iter: %u", max_iter);
@@ -1744,13 +1802,14 @@ draw_vert draw_curveIfPlot(
       (*p_on_iter_cb)(p_log, p_grad_agg, &last, &f_x_t, p_curve->p_fd_cb(p_curve), row_start_iter, p_globals);
     }
 
-    if((*p_on_seg_cb)(&last, &f_x_t, p_on_pt_cb, &p_log->f, p_grad_agg, row_start_iter, p_globals)) {
-      draw_setDir(&last, &f_x_t, &cur_dir, p_globals);
-      last=f_x_t;
+    if((*p_on_seg_cb)(&quantised_last, &f_x_t, p_on_pt_cb, &p_log->f, p_grad_agg, row_start_iter, p_globals)) {
+      draw_setDir(&quantised_last, &f_x_t, &cur_dir, p_globals);
+      quantised_last=f_x_t;
     } else {
-      draw_setDir(&last, &f_x_t, &cur_dir, p_globals);
+      draw_setDir(&quantised_last, &f_x_t, &cur_dir, p_globals);
     }
-
+    last=f_x_t;
+    
     max_y[f_x_t.y>max_y[1]]=f_x_t.y;
   }
 
@@ -1763,13 +1822,14 @@ draw_vert draw_curveIfPlot(
   if(p_on_iter_cb) {
     (*p_on_iter_cb)(p_log, p_grad_agg, &last, p_2, &fd, row_start_iter, p_globals);
   }
-  if((*p_on_seg_cb)(&last, p_2, p_on_pt_cb, &p_log->f, p_grad_agg, row_start_iter, p_globals)) {
-    draw_setDir(&last, p_2, &cur_dir, p_globals);    
-    last=*p_2;
+  if((*p_on_seg_cb)(&quantised_last, p_2, p_on_pt_cb, &p_log->f, p_grad_agg, row_start_iter, p_globals)) {
+    draw_setDir(&quantised_last, p_2, &cur_dir, p_globals);    
+    quantised_last=*p_2;
   } else {
-    draw_setDir(&last, p_2, &cur_dir, p_globals);    
+    draw_setDir(&quantised_last, p_2, &cur_dir, p_globals);    
   }
-
+  last=*p_2;
+  
   //max_y[f_x_t.y>max_y[1]]=f_x_t.y;
   return fd;
 }
@@ -1870,11 +1930,11 @@ void draw_scanBrushLogDestroy(draw_scanBrushLog *p_b) {
 
 void draw_scanFillLogDestroy(draw_scanFillLog *p_f) {
   if(p_f->xs_pairs.p_y_2_ends) {
-    rtu_memFree(p_f->xs_pairs.p_y_2_ends);
+    //rtu_memFree(p_f->xs_pairs.p_y_2_ends);
     p_f->xs_pairs.p_y_2_ends=NULL;
   }
   if(p_f->xs_pairs.p_y_2_starts) {
-    rtu_memFree(p_f->xs_pairs.p_y_2_starts);
+    //rtu_memFree(p_f->xs_pairs.p_y_2_starts);
     p_f->xs_pairs.p_y_2_starts=NULL;
   }
 }
@@ -1924,6 +1984,7 @@ void draw_renderCoreInit(draw_renderCore *p_render_core, const draw_vert *p_0, c
   p_render_core->step=1/(float32)max_iter;
   float32 real_min_y=MIN(MIN(p_0->y, p_1->y), p_2->y)-p_render_core->p_w->half_width;
   real_min_y=MAX(real_min_y,0);
+  /*
   p_render_core->min_y=((sint32)real_min_y)-1;  //sometimes due to rounding error we can get a y value less than real_min_y when rendering our bezier. So we give ourselves one more row to play with by making min_y smaller by -1 than it should really need to be
   float32 real_max_y=MAX(MAX(p_0->y, p_1->y), p_2->y)+p_render_core->p_w->half_width;
   real_max_y=MIN(real_max_y, p_canvas->h-1);
@@ -1933,7 +1994,7 @@ void draw_renderCoreInit(draw_renderCore *p_render_core, const draw_vert *p_0, c
   } else {
     p_render_core->height=(2+((sint32)real_max_y)-p_render_core->min_y);
   }
-  
+  */
   //LOG_ASSERT(p_render_core->real_max_y<100000, "out of range real_max_y. REMOVE");
 }
 
@@ -1941,19 +2002,24 @@ uint32 draw_renderCoreMaxIter(const draw_renderCore *p_render_core) {
   return p_render_core->max_iter;
 }
 
-void draw_renderCoreDraw(draw_renderCore *p_core, draw_scanLog *p_log, draw_grads *p_grad_agg, draw_globals *p_globals) {
+draw_grad* draw_renderCoreDraw(draw_renderCore *p_core, draw_scanLog *p_log, draw_grads *p_grad_agg, draw_globals *p_globals) {
   /*
   if(p_grad_agg->max_iter==8) {
     LOG_INFO("checking %p idx 8. %u", &(p_grad_agg->trans.p_iter_2_grad_trans[8]), p_grad_agg->trans.p_iter_2_grad_trans[8].idx);
   }
   */
-  draw_vert last_tan=draw_plotBez(p_core->step, p_core->spine, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_coreInitGrad, p_grad_agg), p_log, &p_grad_agg->grads_if, p_globals);
+  //draw_vert last_tan=draw_plotBez(p_core->step, p_core->spine, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_coreInitGrad, p_grad_agg), p_log, &p_grad_agg->grads_if, p_globals);
+  draw_plotBez(p_core->step, p_core->spine, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_coreInitGrad, p_grad_agg), p_log, &p_grad_agg->grads_if, p_globals);
   LOG_ASSERT(p_grad_agg->max_iter>0, "invalid no of iters");
-  draw_recordFD(p_log, p_grad_agg, &p_core->spine[2], &last_tan, p_grad_agg->max_iter, p_globals);
+
+  //draw_quadIdx qi=draw_vector2QuadIdx(&last_tan);
+  //p_grad->quadrant=g_xy_2_quad[qi.x_idx][qi.y_idx];
+  //draw_recordFD(p_log, p_grad_agg, &p_core->spine[2], &last_tan, p_grad_agg->max_iter, p_globals);
+  //p_grad->initialised=false;
+  //draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
+  draw_coreRender(p_log, p_grad_agg, p_grad_agg->max_iter+1, p_globals);
   draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[p_grad_agg->max_iter];
-  p_grad->initialised=false;
-  draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
-  draw_coreRender(p_log, p_grad_agg, p_grad_agg->max_iter, p_globals);
+  return p_grad;
 }
 
 uint32 draw_calcMaxIter(const float32 width, const float32 ang) {
@@ -2059,32 +2125,55 @@ void draw_gradTranslatedsDestroy(draw_gradTranslateds *p_grad_trans) {
   p_grad_trans->num_iters=0;
 }
 
-void draw_scanFillLogInit(draw_scanFillLog *p_f, const draw_renderCore *p_render_core) {
-  p_f->highly_acute=(p_render_core->ang<=PI_OVER_EIGHT);
+/*
+void draw_scanFillLogInit(draw_scanFillLog *p_f, const draw_vert verts[], const draw_globals *p_globals) {
   p_f->min_y=p_render_core->min_y;
   const uint32 rows=draw_renderCoreHeight(p_render_core, p_f);
   p_f->size=rows;
 
   //LOG_INFO("rows: %u real_max_y: %u. min_y: %i.", rows, p_render_core->real_max_y, p_f->min_y);
-  p_f->xs_pairs.p_y_2_starts=rtu_memAlloc(sizeof(uint32)*rows);
+  p_f->xs_pairs.p_y_2_starts=p_globals->all_xs_pairs.p_y_2_starts;
   if(p_f->xs_pairs.p_y_2_starts) {
-    p_f->xs_pairs.p_y_2_ends=rtu_memAlloc(sizeof(uint32)*rows);
+    p_f->xs_pairs.p_y_2_ends=p_globals->all_xs_pairs.p_y_2_ends;
     if(!p_f->xs_pairs.p_y_2_ends) {
-      LOG_ASSERT(false, "failed to malloc for p_y_2_ends: %u", sizeof(uint32)*rows);
+      LOG_ASSERT(false, "p_y_2_ends was not pre-alloced");
       return;
     }
   } else {
-    LOG_ASSERT(false, "failed to malloc for p_y_2_starts: %u", sizeof(uint32)*rows);
+    LOG_ASSERT(false, "p_y_2_starts was not pre-alloced");
     return;
   }
 }
+*/
 
-float32 draw_scanFillLogCheckAngle(draw_scanFillLog *p_f, const draw_grad *p_last_grad, const draw_grad *p_grad, const draw_globals *p_globals) {
+float32 draw_scanFillLogGetAngle(const draw_scanFillLog *p_f, const sint32 idx) {
+  /* p_f->next_ang_idx ranges from 1 to (DRAW_NUM_ANGS_PLUS_1-1) inclusive (1 to 3)
+   * idx ranges from (1-DRAW_NUM_ANGS_PLUS_1) to -1 inclusive (ie -3 to -1)
+   * => p_f->next_ang_idx+idx-1 ranges from (-DRAW_NUM_ANGS_PLUS_1) to (DRAW_NUM_ANGS_PLUS_1-3) inclusive (ie -3 to 1)
+   */
+  LOG_ASSERT(idx<0 && idx >= -(DRAW_NUM_ANGS_PLUS_1-1), "out of range idx: %i", idx);
+  LOG_ASSERT(p_f->next_ang_idx>=1 && p_f->next_ang_idx<DRAW_NUM_ANGS_PLUS_1, "out of range p_f->ang_idx: %u", p_f->next_ang_idx);
+  sint32 positive_idx=p_f->next_ang_idx+idx-1;
+  if(positive_idx<0) {
+    positive_idx+=(DRAW_NUM_ANGS_PLUS_1-1);
+  }
+  return ABSF(p_f->angs[positive_idx+1]-p_f->angs[positive_idx]);
+}
+
+void draw_scanFillLogAddAngle(draw_scanFillLog *p_f, const draw_grad *p_grad, const draw_globals *p_globals) {
   float32 ang=draw_gradATan(p_grad, p_globals);
-  
-  float ang_between=ABSF(ang-p_f->last_ang);
-  p_f->last_ang=ang;
-  return ang_between;
+  p_f->angs[p_f->next_ang_idx++]=ang;
+  if(p_f->next_ang_idx>=DRAW_NUM_ANGS_PLUS_1) {
+    p_f->next_ang_idx=1;
+    p_f->angs[0]=p_f->angs[DRAW_NUM_ANGS_PLUS_1-1];
+  }
+}
+
+void draw_scanFillLogInit(draw_scanFillLog *p_f) {
+  p_f->next_ang_idx=1;
+  for(sint32 i=0; i<DRAW_NUM_ANGS_PLUS_1; i++) {
+    p_f->angs[i]=0;
+  }
 }
 
 void draw_scanLogInit(draw_scanLog *p_log, 
@@ -2093,7 +2182,9 @@ void draw_scanLogInit(draw_scanLog *p_log,
 		      const draw_globals *p_globals) {
   rtu_memZero(p_log, sizeof(draw_scanLog));
   p_log->p_b=p_b;
-  draw_scanFillLogInit(&p_log->f, p_render_core);
+  //p_log->highly_acute=(p_render_core->ang<=M_PI_4); //this was PI/8 and changed it to PI/4
+  p_log->highly_acute=(p_render_core->ang<=PI_OVER_EIGHT); //this was PI/8 and changed it to PI/4
+  draw_scanFillLogInit(&p_log->f);
 }
 
 void draw_gradsArrayInit(draw_gradsArray *p_grads_arr, const uint32 num_iters) {
@@ -2122,11 +2213,12 @@ void draw_gradsArrayDestroy(draw_gradsArray *p_grads_arr) {
   p_grads_arr->num_iters=0;
 }
 
-void draw_thickQuad(const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2, draw_scanBrushLog *p_b, draw_globals *p_globals) {
+draw_vert draw_thickQuad(const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2, draw_scanBrushLog *p_b, draw_globals *p_globals) {
   bool first_matches=draw_vertEq(p_0, p_1);
   bool snd_matches=draw_vertEq(p_1, p_2);
+  draw_vert null_result={.x=1, .y=0};
   if(first_matches && snd_matches) {
-    return;
+    return null_result;
   }
 
   draw_vert pt_1=*p_1;
@@ -2138,7 +2230,7 @@ void draw_thickQuad(const draw_vert *p_0, const draw_vert *p_1, const draw_vert 
   draw_renderCore core;
   draw_renderCoreInit(&core, p_0, &pt_1, p_2, &p_b->w, ang, draw_calcMaxIter(p_b->w.width, ang), &p_globals->canvas);
   if(core.p_w->half_width==0) {
-    return;
+    return null_result;
   }
   draw_gradsArray grads_arr;
   uint32 num_iters=draw_renderCoreMaxIter(&core)+1;
@@ -2148,13 +2240,29 @@ void draw_thickQuad(const draw_vert *p_0, const draw_vert *p_1, const draw_vert 
 
   draw_scanLog log;
   draw_scanLogInit(&log, &core, p_b, p_globals);
-  draw_renderCoreDraw(&core, &log, &grad_agg, p_globals);
-  
+  draw_grad *p_last_grad=draw_renderCoreDraw(&core, &log, &grad_agg, p_globals);
+  draw_vert last_fd=p_last_grad->fd_signed;
+
+  //original signs described in comment below are explained in half_quadrants.jpg (labelled fd_signed in each quadrant)
+  switch(p_last_grad->quadrant) {
+  case 0:
+    last_fd=draw_neg(&last_fd); //signs change from (-,-) to (+,+)
+    break;
+  case 1:
+    last_fd=draw_neg(&last_fd); //signs change from (-,+) to (+,-)
+    break;
+  case 2:
+    //signs remain as (-,-)
+    break;
+  case 3:
+    //signs remain as (-,+)
+    break;
+  }
   draw_scanLogDestroy(&log);
   draw_gradsDestroy(&grad_agg);
 
   draw_gradsArrayDestroy(&grads_arr);
-  return;
+  return last_fd;
 }
 
 draw_vert draw_determineCtrlPt(const draw_vert *p_0, const draw_vert *p_fd_0, const draw_vert *p_2, const draw_vert *p_fd_2) {
@@ -2300,7 +2408,21 @@ void draw_blotContinue(const draw_vert *p_0, const draw_vert *p_fd, const float3
   stroke.state=DRAW_STROKE_IN_STROKE;
   stroke.last=*p_0;
   draw_strokeRender(&stroke, p_globals);
+  /*
+  if(!draw_strokeRenderable(&stroke)) {
+    LOG_INFO("stroke not renderable. col: 0x%x w: %f", stroke.brush.b.col, stroke.brush.b.w.breadth);
+    return;
+  }
 
+  //draw_strokeEndCap(p_stroke, &p_stroke->last, &p_stroke->last_fd, p_globals);
+  draw_vert neg_fd=draw_neg(&stroke.last_fd);
+  draw_strokeCap(&stroke, &stroke.last, &stroke.last_fd, &neg_fd, p_globals);
+  stroke.state=DRAW_STROKE_RENDERED;
+  draw_canvasMergeDirt(&p_globals->canvas);
+  //LOG_INFO("stroke renderable. col: 0x%x w: %f extant: %i, %i - %i, %i", p_stroke->brush.b.col, p_stroke->brush.b.w.breadth, p_globals->canvas.extantDirty.lt.x, p_globals->canvas.extantDirty.lt.y, p_globals->canvas.extantDirty.rb.x, p_globals->canvas.extantDirty.rb.y);
+  */
+
+  
   draw_brushDestroy(&brush);
 }
 
@@ -2599,18 +2721,18 @@ void draw_canvasMarkDirtyRadius(draw_canvas *p_canvas, const draw_vert *p_0, con
   draw_canvasMarkDirtyRect(p_canvas, &bnds);
 }
 
-sint32 draw_vertNonReflexAngNormalised(const draw_vert *p_fst, const draw_vert *p_snd) {
+sint32 draw_vertNonReflexAngNormalised(const draw_vert64 *p_fst, const draw_vert64 *p_snd) {
   /*
-    Assumes p_fst and p_snd are directional vectors.  Then are two
-    angle formed between the vector position of p_fst, the origin and
-    p_snd -- a reflex angle (around the outside) or the
-    non-reflex angle (ie acute or obtuse on the inside). This function indicates
-    which angle is which. 
+    Assumes p_fst and p_snd are normalised directional vectors. Then
+    are two angle formed between the vector position of p_fst, the
+    origin and p_snd -- a reflex angle (around the outside) or the
+    non-reflex angle (ie acute or obtuse on the inside). This function
+    indicates which angle is which.
 
-    If +1 is returned the acute/obtuse angle is found by travelling
-    clockwise from p_fst, around the origin to p_snd. Travelling
-    anticlockwise from p_fst to p_snd is consequently the reflex
-    angle.
+    If +1 is returned the non-reflexive angle is found by travelling
+    clockwise from p_fst, around the origin to p_snd (assuming -ve y
+    coords are above the origin) . Travelling anticlockwise from p_fst
+    to p_snd is conversely the reflex angle.
 
     If -1 is returned the acute/obtuse angle is found by travelling
     anticlockwise from p_fst, around the origin to p_snd. Travelling
@@ -2625,8 +2747,8 @@ sint32 draw_vertNonReflexAngNormalised(const draw_vert *p_fst, const draw_vert *
     an angle of 0 or PI radians exists between the vectors).
   */
 
-  DO_ASSERT(draw_vert snd_180=draw_by(p_snd, -1));
-  DO_ASSERT(draw_vert *p_snd_180=&snd_180);
+  DO_ASSERT(draw_vert64 snd_180=draw_64by(p_snd, -1));
+  DO_ASSERT(draw_vert64 *p_snd_180=&snd_180);
 
   sint32 fst_x_sgn=BSGN(p_fst->x);
   sint32 snd_x_sgn=BSGN(p_snd->x);
@@ -2637,62 +2759,70 @@ sint32 draw_vertNonReflexAngNormalised(const draw_vert *p_fst, const draw_vert *
   sint32 fst_sgn=fst_x_sgn*fst_y_sgn;
   sint32 snd_sgn=snd_x_sgn*snd_y_sgn;
 
-  draw_vert fst;
+  draw_vert64 fst;
 
   if(fst_sgn==snd_sgn) {
     //fst and snd either in same or opposite quadrants
     sint32 quadrant_multiplier=((fst_x_sgn==snd_x_sgn)<<1)-1; //modifies result if p_fst and p_snd are in opposite quadrants.
 
-    //both are fst and snd are in the same quadrant.
-    LOG_ASSERT((fst_x_sgn==snd_x_sgn)==(fst_y_sgn==snd_y_sgn), "not in the same quadrant");
+    LOG_ASSERT((fst_x_sgn==snd_x_sgn)==(fst_y_sgn==snd_y_sgn), "not in the same or opposite quadrants");
     /*
       This table assumes that *p_fst and *p_snd are in the same
-      quadrant. If they are in opposite quadrants then result, and the
-      args corresponding to one of the quadrants in the input table
-      colums must all be multiplied by -1.
+      quadrant. 
 
-      Assuming that p_fst->x can be compared with p_snd->x and
-      p_fst->y can be compared with p_snd->y.
+      If they are in opposite quadrants then rotate one of the points
+      around the origin by 180 degrees. Our 2 input points are the
+      rotated point and its original partner (but keep the orignal
+      order). Look up the table using these input points and use the
+      negative of the table's result. This is because if the angle
+      between 2 points is a reflex then the angle between one of the
+      same points and the other point after rotating it 180 degrees
+      around the origin will be a non-reflex angle, and vice versa of
+      course.
 
-      fst x = BSGN(p_fst->x). fst y defined similarly.  fst y<snd y
-      is p_fst->y<p_snd->y. fst x<snd x defined similarly.
+      The 2 input points (after performing the above transformation if
+      necessary) are *p_fst and *p_snd.  fst x = BSGN(p_fst->x). fst y
+      defined similarly.  fst y<snd y if p_fst->y<p_snd->y. fst x<snd
+      x defined similarly.
+
+      See reflexive_nonreflexive_angles.svg
 
       +-----+-----+---------+-----+------+
       |fst x|fst y|fst x <  |fst y|result|
       |     |     |snd x    |< snd|      |
       |     |     |         |y    |      |
+      +-----+-----+---------+-----+------+ 
+      | -1  |-1   | false   |true |+1    | 
+      +-----+-----+---------+-----+------+ 
+      | -1  |+1   |true     |true |+1    | 
+      +-----+-----+---------+-----+------+ 
+      | +1  |-1   |false    |false|+1    | 
+      +-----+-----+---------+-----+------+ 
+      | +1  |+1   |true     |false|+1    | 
+      +-----+-----+---------+-----+------+ 
+      | -1  |-1   | true    |false|-1    | 
+      +-----+-----+---------+-----+------+ 
+      | -1  |+1   | false   |false|-1    | 
+      +-----+-----+---------+-----+------+ 
+      | +1  |-1   |true     |true |-1    | 
       +-----+-----+---------+-----+------+
-      | -1  |-1   | false   |true |+1    |
+      | +1  |+1   |false    |true |-1    | 
       +-----+-----+---------+-----+------+
-      | -1  |+1   |true     |true |+1    |
+      | -1  |-1   | false   |false| na   | 
       +-----+-----+---------+-----+------+
-      | +1  |-1   |false    |false|+1    |
+      | -1  |-1   | true    |true |na    | 
       +-----+-----+---------+-----+------+
-      | +1  |+1   |true     |false|+1    |
+      | -1  |+1   |false    |true |na    |+1 
       +-----+-----+---------+-----+------+
-      | -1  |-1   | true    |false|-1    |
+      | -1  |+1   |true     |false|na    | 
       +-----+-----+---------+-----+------+
-      | -1  |+1   | false   |false|-1    |
+      | +1  |-1   |false    |true |na    | 
       +-----+-----+---------+-----+------+
-      | +1  |-1   |true     |true |-1    |
+      | +1  |-1   |true     |false|na    | 
       +-----+-----+---------+-----+------+
-      | +1  |+1   |false    |true |-1    |
+      | +1  |+1   |false    |false|na    | x
       +-----+-----+---------+-----+------+
-      | -1  |-1   | false   |false| na   |
-      +-----+-----+---------+-----+------+
-      | -1  |-1   | true    |true |na    |
-      +-----+-----+---------+-----+------+
-      | -1  |+1   |false    |true |na    |
-      +-----+-----+---------+-----+------+
-      | -1  |+1   |true     |false|na    |
-      +-----+-----+---------+-----+------+
-      | +1  |-1   |false    |true |na    |
-      +-----+-----+---------+-----+------+
-      | +1  |-1   |true     |false|na    |
-      +-----+-----+---------+-----+------+
-      | +1  |+1   |false    |false|na    |
-      +-----+-----+---------+-----+------+
-      | +1  |+1   |true     |true |na    |
+      | +1  |+1   |true     |true |na    | 
       +-----+-----+---------+-----+------+
 
       ie either compare fst y and fst x<snd x or fst x and fst y<snd y
@@ -2700,11 +2830,18 @@ sint32 draw_vertNonReflexAngNormalised(const draw_vert *p_fst, const draw_vert *
 
     DO_ASSERT(fst_x_sgn*=quadrant_multiplier);
     fst_y_sgn*=quadrant_multiplier;
-    fst=draw_by(p_fst, quadrant_multiplier);
+    fst=draw_64by(p_fst, quadrant_multiplier);
     p_fst=&fst;
 
     sint32 result=fst_y_sgn*(((p_fst->x<p_snd->x)<<1)-1);
-    LOG_ASSERT(IMPLIES((-fst_x_sgn*(((p_fst->y<p_snd->y)<<1)-1))!=result, (rtu_similarToZero(draw_euclideanDistSquared(p_fst, p_snd), 0.01) || rtu_similarToZero(draw_euclideanDistSquared(p_fst, p_snd_180), 0.01))), "inconsistent result: fst x: %i, fst y: %i, fst x < snd x: %u, fst y<snd y: %u", fst_x_sgn, snd_x_sgn, p_fst->x<p_snd->x, p_fst->y<p_snd->y);
+    DO_ASSERT(bool points_are_similar=rtu_64similarToZero64(draw_64euclideanDistSquared64(p_fst, p_snd), 0.01));
+    DO_ASSERT(bool points_are_similar_after_rotation=rtu_64similarToZero64(draw_64euclideanDistSquared64(p_fst, p_snd_180), 0.01));
+    
+    //we don't mention quadrant_multiplier in the next assert. In
+    //actuality we should multiply each side of the premise by
+    //quadrant_multiplier, but since that's done to both sides, it can
+    //be ommitted
+    LOG_ASSERT(IMPLIES((fst_x_sgn*(((p_fst->y<p_snd->y)<<1)-1))*quadrant_multiplier==result*quadrant_multiplier, (points_are_similar || points_are_similar_after_rotation)), "inconsistent result: fst x: %i, fst y: %i, fst x < snd x: %u, fst y<snd y: %u", fst_x_sgn, snd_x_sgn, p_fst->x<p_snd->x, p_fst->y<p_snd->y);
     return result*quadrant_multiplier;
   } else {
     /*
@@ -2742,9 +2879,11 @@ sint32 draw_vertNonReflexAng(const draw_vert *p_not_normalised_fst, const draw_v
 
   float mag_snd=draw_mag(p_not_normalised_snd);
   draw_vert fst=draw_divide(p_not_normalised_fst, mag_fst);
-  draw_vert *p_fst=&fst;
+  draw_vert64 fst64={.x=fst.x, .y=fst.y};
+  draw_vert64 *p_fst=&fst64;
   draw_vert snd=draw_divide(p_not_normalised_snd, mag_snd);
-  draw_vert *p_snd=&snd;
+  draw_vert64 snd64={.x=snd.x, .y=snd.y};
+  draw_vert64 *p_snd=&snd64;
 
   return draw_vertNonReflexAngNormalised(p_fst, p_snd);
 }
@@ -2793,31 +2932,30 @@ void draw_lastTri(
   draw_triNow(p_log, p_ref, p_0, quad_iter, p_globals);
 }
 
-void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_last_fd, draw_vert *p_next_fd, draw_globals *p_globals) {
+void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_first_fd, draw_vert *p_last_fd, draw_globals *p_globals) {
   draw_canvasMarkDirtyRadius(&p_globals->canvas, p_0, p_stroke->brush.b.w.breadth, p_stroke->brush.b.w.blur_width);
 
+  draw_vert neg_first_fd=draw_neg(p_first_fd);
   draw_vert neg_last_fd=draw_neg(p_last_fd);
-  draw_vert neg_next_fd=draw_neg(p_next_fd);
   float32 width=draw_savedWidth2RenderedWidth(p_stroke->brush.b.w.breadth, p_stroke->brush.b.w.blur_width);
   float32 half_width=width*0.5;
 
-  draw_vert *p_stroke_end_pts[2], *p_stroke_start_pts[2];
+  draw_rect64 end_pts=draw_calcTerminalBox(p_0, p_first_fd, half_width);
+  draw_rect end_pts32={.lt={.x=end_pts.lt.x, .y=end_pts.lt.y}, .rb={.x=end_pts.rb.x, .y=end_pts.rb.y}};
+  draw_rect64 start_pts=draw_calcTerminalBox(p_0, &neg_last_fd, half_width);
+  draw_rect start_pts32={.lt={.x=start_pts.lt.x, .y=start_pts.lt.y}, .rb={.x=start_pts.rb.x, .y=start_pts.rb.y}};
+  draw_vert *p_stroke_end_pts[]={&end_pts32.lt, &end_pts32.rb},
+    *p_stroke_start_pts[]={&start_pts32.lt, &start_pts32.rb};
 
-  draw_rect end_pts=draw_calcTerminalBox(p_0, p_last_fd, half_width);
-  p_stroke_end_pts[0]=&end_pts.lt;
-  p_stroke_end_pts[1]=&end_pts.rb;
-  draw_rect start_pts=draw_calcTerminalBox(p_0, &neg_next_fd, half_width);
-  p_stroke_start_pts[0]=&start_pts.lt;
-  p_stroke_start_pts[1]=&start_pts.rb;
   /* We wish to draw a curve around the outside of the stroke from
      either p_stroke_start_pts[0] to p_stroke_end_pts[1] or from
      p_stroke_start_pts[1] to p_stroke_end_pts[0].
 
      See feathering_angles.svg (E).
   */
-  draw_vert join_offsets[2];
-  join_offsets[0]=draw_diff(p_stroke_end_pts[0], p_0);
-  join_offsets[1]=draw_diff(p_stroke_start_pts[0], p_0);
+  draw_vert64 join_offsets[2];
+  join_offsets[0]=draw_64diff(&end_pts.lt, p_0);
+  join_offsets[1]=draw_64diff(&start_pts.lt, p_0);
   sint32 zeroth_order=draw_vertNonReflexAngNormalised(&join_offsets[0], &join_offsets[1]);
   /*
     If zeroth_order is +1, ie moving clockwise from
@@ -2833,15 +2971,15 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
     terminal_start=*p_stroke_start_pts[0];
     terminal_end=*p_stroke_end_pts[1];
 
-    p_start_fd=p_next_fd;
-    p_end_fd=&neg_last_fd;
+    p_start_fd=p_last_fd;
+    p_end_fd=&neg_first_fd;
   } else {
     LOG_ASSERT(zeroth_order==-1, "invalid zeroth order %i", zeroth_order);
     terminal_end=*p_stroke_start_pts[1];
     terminal_start=*p_stroke_end_pts[0];
 
-    p_start_fd=&neg_last_fd;
-    p_end_fd=p_next_fd;
+    p_start_fd=&neg_first_fd;
+    p_end_fd=p_last_fd;
   }
 
   if((sint32)terminal_start.x==(sint32)terminal_end.x && (sint32)terminal_start.y==(sint32)terminal_end.y) {
@@ -2860,6 +2998,7 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
   const uint32 V_IDX=1;
   draw_vert incoming_fd=*p_start_fd, outgoing_fd;
   draw_vert start=terminal_start, ctrl, end;
+  //LOG_INFO("cap. start: %f, %f", terminal_start.x, terminal_start.y);
   float step;
 
   draw_vertNullable initial_pt;
@@ -2955,6 +3094,7 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_la
   //render bezier here from start -> ctrl -> end
   draw_plotBez(step, p_pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_triFillCb, &ref), &log, &ref.grads_if, p_globals);
   draw_lastTri(&log, &ref, &p_pts[2], width, p_globals);
+  //LOG_INFO("cap. end: %f, %f", terminal_end.x, terminal_end.y);
   draw_gradReferenceDestroy(&ref);
   draw_scanLogDestroy(&log);
 }
@@ -3011,9 +3151,8 @@ void draw_strokeQuadTo(draw_stroke *p_stroke, const draw_vert *p_ctrl, const dra
     break;
   }
 
-  draw_thickQuad(&p_stroke->last, &scaled_ctrl, &scaled_end, &p_stroke->brush.b, p_globals);
-
-  p_stroke->last_fd=draw_strokeEndFD(p_stroke, &p_stroke->last, &scaled_ctrl, &scaled_end, &p_stroke->brush);
+  p_stroke->last_fd=draw_thickQuad(&p_stroke->last, &scaled_ctrl, &scaled_end, &p_stroke->brush.b, p_globals);
+  //p_stroke->last_fd=draw_strokeEndFD(p_stroke, &p_stroke->last, &scaled_ctrl, &scaled_end, &p_stroke->brush);
   p_stroke->last=scaled_end;
   p_stroke->state=DRAW_STROKE_IN_STROKE;
   draw_canvasMergeDirt(&p_globals->canvas);

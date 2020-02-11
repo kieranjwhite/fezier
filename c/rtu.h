@@ -41,7 +41,9 @@
 #endif
 
 #define TWO_PI (2*M_PI)
-#define PI_OVER_EIGHT (M_PI_4*0.5)
+#define PI_OVER_SIX (5.235987755982988e-01)
+#define PI_OVER_EIGHT (3.926990816987241e-01)
+#define PI_OVER_2000 (1.570796326794897e-03)
 
 #define MAX(X,Y) ((X)>(Y)?(X):(Y))
 #define MIN(X,Y) ((X)>(Y)?(Y):(X))
@@ -60,6 +62,7 @@ inline uint32 rtu_abs(sint32 v) {
 #define ABSF(X) ((((X)>=0)*(X))-(!((X)>=0))*(X))
 #define SGN(X) (((X) > 0) - ((X) < 0))
 #define RANGE(X,MIN,MAX_PLUS) ((X>=MIN && X<MAX_PLUS?0:(X<MIN?-1:+1)))
+#define RANGE_INCL(X,MIN,MAX) ((X>=MIN && X<=MAX?0:(X<MIN?-1:+1)))
 #define CMP(X,Y) (((X) > (Y)) - ((X) < (Y)))
 #define DIM(X) (sizeof(X)/sizeof(X[0]))
 #define IMPLIES(X,Y) ((!(X)) || ((X) && (Y)))
@@ -158,7 +161,8 @@ inline void rtu_memSet(void *p, const uint32 v, const uint32 num_words32) {
   */
   
   uint32 *p_end=((uint32 *)p)+num_words32;
-  for(uint32 *p_cur=p; p_cur<p_end; p_cur++) {
+  uint32 *p_cur;
+  for(p_cur=p; p_cur<p_end; p_cur++) {
     *p_cur=v;
   }
 }
@@ -188,6 +192,10 @@ inline void rtu_memZero(void *p_mem, uint32 size) {
 }
 
 inline bool rtu_similarToZero(float32 fst, float32 fuzz) {
+  return ABSF(fst)<fuzz;
+}
+
+inline bool rtu_64similarToZero64(float64 fst, float64 fuzz) {
   return ABSF(fst)<fuzz;
 }
 
@@ -265,6 +273,10 @@ inline float32 rtu_altAng(float32 ang) {
   }
   LOG_ASSERT(res>=-M_PI && res<M_PI, "out of range ang %f", ang);
   return res;
+}
+
+static inline float32 rtu_lineC(float32 x, float32 y, float32 m) {
+  return y-m*x;
 }
 
 void *rtu_memAlloc(uint32 bytes);

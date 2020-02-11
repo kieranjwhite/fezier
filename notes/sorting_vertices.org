@@ -1,0 +1,19 @@
+* Find vertex with greatest normal dim diff and select the complementary vertex as partner
+** Alg
+*** given verts[0]...verts[3]
+*** if on_x compare x_coords
+**** verts[0].x and verts[2].x
+**** verts[1].x and verts[2].x
+**** verts[0].x and verts[3].x
+**** verts[1].x and verts[3].x
+**** let the largest diff be from verts[i].x to verts[j].x
+**** an edge will exist between verts[1-i] and verts[j] and between verts[i] and verts[2+(3-j)]
+*** if !on_x compare y_coords
+**** verts[0].y and verts[2].y
+**** verts[1].y and verts[2].y
+**** verts[0].y and verts[3].y
+**** verts[1].y and verts[3].y
+**** let the largest diff be from verts[i].y to verts[j].y
+**** an edge will exist between verts[1-i] and verts[j] and between verts[i] and verts[2+(3-j)]
+** Criticism
+*** Fails for case (8) in quadrant_vertices.svg

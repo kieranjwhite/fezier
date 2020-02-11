@@ -1,4 +1,4 @@
-/* Copyright 2015 Kieran White.
+/* Copyright 2020 Kieran White.
    This file is part of Fezier.
 
    This program is free software: you can redistribute it and/or modify
@@ -23,7 +23,6 @@
 
 #include "../rtu.h"
 #include "../types.h"
-
 //due to rounding errors some asserts can fail, so we allow some leeway by including a fuzz factor in the condition
 #define DRAW_FUZZ_FACTOR 0.4
 
@@ -51,7 +50,7 @@
 #define DRAW_DIR_UL ((uint32)(DRAW_DIR_L+DRAW_DIR_INC))
 
 #define DRAW_DIV_LIMIT 0x1000
-#define DRAW_ATAN_DIVISORS 8
+#define DRAW_ATAN_DIVISORS 2000
 
 //fixed point arithmetic multiplies vals by this value before casting
 #define DRAW_PROXIMITY_FIXED_POINT 16
@@ -73,9 +72,19 @@
 #define DRAW_SMALLEST_VISIBLE_OPACITY_CHANGE_PER_STD_PIXEL 6
 
 typedef struct {
+  bool x_idx;
+  bool y_idx;
+} draw_quadIdx;
+
+typedef struct {
   float32 x;
   float32 y;
 } draw_vert;
+
+typedef struct {
+  float64 x;
+  float64 y;
+} draw_vert64;
 
 typedef struct {
   draw_vert *p_pt;
@@ -92,7 +101,8 @@ typedef struct {
   float32 c5; //(bx-ax) in link's top answer - see https://stackoverflow.com/questions/3461453/determine-which-side-of-a-line-a-point-lies
   float32 c6; //(by-ay) in link's top answer - see https://stackoverflow.com/questions/3461453/determine-which-side-of-a-line-a-point-lies
   draw_vert fd_signed;
-  
+  uint8 quadrant; //only used to populate semi_quadrant by lookuping up g_on_x_and_quad_2_semi_quad
+  uint8 semi_quadrant; //values 0-7 indicating semi quadrant of the vector between 2 successive p_grad->mid's where 0 is the semiquadrant to just to the right of 12 o' clock. Not used when rendering blots. Also not used for iter 0 (as it needs a previous grad to idenfity semi quadrant). If p_grad->mid>p_last_grad->y then the semi_quadrant will have a value of 2-5
   DO_ASSERT(bool fd_recorded);
   bool initialised;
   bool on_x;
@@ -151,6 +161,11 @@ typedef struct {
 } draw_rect;
 
 typedef struct {
+  draw_vert64 lt;
+  draw_vert64 rb;
+} draw_rect64;
+
+typedef struct {
   draw_vert pts[3];
   
   draw_vert fd_init_val;
@@ -177,7 +192,6 @@ typedef struct {
   float32 width_recip; //1/draw_strokeWidth.width
   float32 half_width; //draw_strokeWidth.width*0.5
   float32 blur_width; //number of pixels between brush's opacity and complete transparancy. We optimise by scaling on hi-dpi screens so this value can be less than rendered_blur_width when scaling is in effet
-  float32 rendered_blur_width; //number of pixels on screen between brush's opacity and complete transparancy
   float32 half_blur_width; //blur width * 0.5
   float32 blurred_prop; //draw_strokeWidth.half_blur_width/draw_strokeWidth.width
   float32 blurred_prop_recip; //1/draw_strokeWidth.blurred_prop
@@ -186,17 +200,17 @@ typedef struct {
 
 typedef struct {
   uint32 opacity_scaled;
-  sint32 p_incs_per_pos[4]; //how much a change of 1 along the iter hypothenuse changes the opacity
+  sint32 p_incs_per_pos[4]; //how much a change of 1 along the iter normal changes the opacity
 
   //compare threshes to positional sum
   float32 threshes[4]; //pos values. 0th full opacity start, 1st full opacity end, 2nd no opacity start, 3rd UINT_MAX, but if any region has a width of zero then element will not be provided and any later elements will be shifted down to fill the hole
   float32 start_threshes[4];
   uint32 start_opacity[4]; //the 4 elements here will always be populated and are as follows 0th opacity from start, 1st opacity at start of full opacity region, 2nd opacity at end of full opacity region, 3rd opacity at end
 
-  float32 bisect_threshes[4]; //pos values. 0th full opacity start, 1st full opacity end, 2nd no opacity start, 3rd UINT_MAX, but if any region has a width of zero then element will not be provided and any later elements will be shifted down to fill the hole
-  float32 bisect_start_threshes[4];
-  uint32 bisect_start_opacity[4]; //the 4 elements here will always be populated and are as follows 0th opacity from start, 1st opacity at start of full opacity region, 2nd opacity at end of full opacity region, 3rd opacity at end
-  sint32 bisect_incs_per_pos[4]; //how much a change of 1 along the iter hypothenuse changes the opacity
+  //float32 bisect_threshes[4]; //pos values. 0th full opacity start, 1st full opacity end, 2nd no opacity start, 3rd UINT_MAX, but if any region has a width of zero then element will not be provided and any later elements will be shifted down to fill the hole
+  //float32 bisect_start_threshes[4];
+  //uint32 bisect_start_opacity[4]; //the 4 elements here will always be populated and are as follows 0th opacity from start, 1st opacity at start of full opacity region, 2nd opacity at end of full opacity region, 3rd opacity at end
+  //sint32 bisect_incs_per_pos[4]; //how much a change of 1 along the iter hypothenuse changes the opacity
   
 } draw_gradConsts;
 
@@ -229,7 +243,7 @@ typedef struct {
   draw_iterRange iter_range;
   uint32 q;
   uint32 iter;
-  sint32 start_x;
+  sint32 start_x; //TODO change back to sint32 from float32
   sint32 end_x;
   draw_grad *p_iter_2_grad;
   draw_grad *p_grad;
@@ -273,12 +287,18 @@ typedef struct {
 } draw_gradsArray;
 
 typedef struct {
+  sint32 *p_y_2_starts;
+  sint32 *p_y_2_ends;
+} draw_decomposedBounds;
+
+typedef struct {
   rtu_globals *p_rtu;
   /*
   uint32* p_bitmap;
   draw_vertInt draw_dim;
   */
   draw_canvas canvas;
+  draw_decomposedBounds all_xs_pairs; //the pointers within should point to 2 sint32 arrays each with an element corresponding to a row in the canvas
   draw_vert null_vert;
   uint32 pp_y_dirs[3][3];
   draw_vert draw_origin;
@@ -468,23 +488,19 @@ typedef struct {
 } draw_posState;
 
 typedef struct {
-  sint32 *p_y_2_starts;
-  sint32 *p_y_2_ends;
-} draw_decomposedBounds;
-
-typedef struct {
-  sint32 min_y;
+  sint32 min_y; //the row with the smallest y coord that is expected to be modified by rendering the current stroke (defined by 3 control points and a brush width)
 
   draw_decomposedBounds xs_pairs;
-  uint32 size; //number of elements in each of the two xs_pair fields
+  //uint32 size; //number of elements in each of the two xs_pair fields -- the largest y coord among the current 3 control points less the smallest plus the brush diameter with an allowance made for rounding error
 
-  bool highly_acute; //If a curve if very acute then there is the possibility that the angle between two successive draw_grads is sufficiently large at to lead to rendering artifacts. We special case this scenario in draw_coreRender(), checking this flag first.
-  float32 last_ang;
-  
+  uint32 next_ang_idx;
+#define DRAW_NUM_ANGS_PLUS_1 4
+  float32 angs[DRAW_NUM_ANGS_PLUS_1];
 } draw_scanFillLog; //fields here are required by our most recent draw_grad quadrilateral filling algorithm. The fields' values change between renderings.
 
 typedef struct {
   draw_scanBrushLog *p_b;
+  bool highly_acute; //If a curve if very acute then there is the possibility that the angle between two successive draw_grads is sufficiently large at to lead to rendering artifacts. We special case this scenario in draw_coreRender(), checking this flag first.
   draw_scanFillLog f;
 } draw_scanLog;
 
@@ -519,8 +535,8 @@ typedef struct {
   float32 step;
   //uint32 real_max_y;
   //uint32 real_min_y;
-  sint32 min_y;
-  uint32 height;
+  //sint32 min_y;
+  //uint32 height; //the largest y coord among the 3 control points less the smallest plus the brush diameter
 } draw_renderCore;   //needed by new renderer
 
 typedef struct {
@@ -528,7 +544,8 @@ typedef struct {
 } draw_render;
 
 
-void draw_init(const uint32 w, const uint32 h, const float32 devicePixelRatio, uint32 *p_pixels, draw_globals *p_globals);
+bool draw_init(const uint32 w, const uint32 h, const float32 devicePixelRatio, uint32 *p_pixels, draw_globals *p_globals);
+void draw_destroy(draw_globals *p_globals);
 void draw_canvasResetDirty(draw_canvas *p_canvas);
 bool draw_canvasSetup(draw_canvas *p_canvas, uint32 w, uint32 h, uint32* p_pixels);
 bool draw_horizSegmentInit(draw_horizSegment *p_seg, const draw_scanBrushLog *p_b, const sint32 first_x, const sint32 last_x, const uint32 y, draw_globals *p_globals, draw_gradsIf *p_grads_if);
@@ -623,6 +640,11 @@ inline draw_vert draw_norm(const draw_vert *p_tan) {
   return norm;
 }
 
+inline draw_vert64 draw_norm64(const draw_vert64 *p_tan) {
+  draw_vert64 norm={ .x=-p_tan->y, .y=p_tan->x };
+  return norm;
+}
+
 inline uint32 draw_mem_inc_idx(const uint32 idx) {
   LOG_ASSERT(false, "modulo operator used");
   return (idx+1) % 3;
@@ -637,6 +659,11 @@ inline float32 draw_euclideanDistSquared(const draw_vert *p_0, const draw_vert *
   return x_delta*x_delta+y_delta*y_delta;
 }
 
+inline float64 draw_64euclideanDistSquared64(const draw_vert64 *p_0, const draw_vert64 *p_1) {
+  float64 x_delta=p_1->x-p_0->x, y_delta=p_1->y-p_0->y;
+  return x_delta*x_delta+y_delta*y_delta;
+}
+
 inline float32 draw_euclideanDist(const draw_vert *p_0, const draw_vert *p_1) {
   return SQRT32(draw_euclideanDistSquared(p_0, p_1));
 }
@@ -646,8 +673,19 @@ inline draw_vert draw_copy(const draw_vert *p_0) {
   return copy;
 }
 
+inline void draw_swap(draw_vert *p_0, draw_vert *p_1) {
+  draw_vert temp=*p_0;
+  *p_0=*p_1;
+  *p_1=temp;
+}
+
 inline draw_vert draw_add(const draw_vert *p_v0, const draw_vert *p_v1) {
   draw_vert res={ .x=p_v0->x+p_v1->x, .y=p_v0->y+p_v1->y };
+  return res;
+}
+
+inline draw_vert64 draw_add64(const draw_vert *p_v0, const draw_vert64 *p_v1) {
+  draw_vert64 res={ .x=((float64)p_v0->x)+p_v1->x, .y=((float64)p_v0->y)+p_v1->y };
   return res;
 }
 
@@ -666,8 +704,28 @@ inline draw_vert draw_diff(const draw_vert *p_v0, const draw_vert *p_v1) {
   return res;
 }
 
+inline draw_vert64 draw_64diff(const draw_vert64 *p_v0, const draw_vert *p_v1) {
+  draw_vert64 res={ .x=p_v0->x-p_v1->x, .y=p_v0->y-p_v1->y };
+  return res;
+}
+
+inline draw_vert64 draw_diff64(const draw_vert *p_v0, const draw_vert64 *p_v1) {
+  draw_vert64 res={ .x=((float64)p_v0->x)-p_v1->x, .y=((float64)p_v0->y)-p_v1->y };
+  return res;
+}
+
 inline draw_vert draw_by(const draw_vert *p_v0, const float32 scalar) {
   draw_vert res={ .x=p_v0->x*scalar, .y=p_v0->y*scalar };
+  return res;
+}
+
+inline draw_vert64 draw_64by(const draw_vert64 *p_v0, const float32 scalar) {
+  draw_vert64 res={ .x=p_v0->x*scalar, .y=p_v0->y*scalar };
+  return res;
+}
+
+inline draw_vert64 draw_by64(const draw_vert *p_v0, const float64 scalar) {
+  draw_vert64 res={ .x=((float64)p_v0->x)*scalar, .y=((float64)p_v0->y*scalar) };
   return res;
 }
 
@@ -688,6 +746,11 @@ inline float32 draw_mag(const draw_vert *p_vert) {
   return sqrt(p_vert->x*p_vert->x+p_vert->y*p_vert->y); //TODO sqrt
 }
 
+inline float64 draw_mag64(const draw_vert *p_vert) {
+  LOG_ASSERT(p_vert->x*p_vert->x+p_vert->y*p_vert->y>=0, "sqrt of negative number x %f, y %f", p_vert->x, p_vert->y);
+  return sqrt(((float64)p_vert->x)*p_vert->x+((float64)p_vert->y)*p_vert->y); //TODO sqrt
+}
+
 inline draw_vert draw_fd2Tan(const draw_vert *p_fd, float32 width) {
   float32 mag=draw_mag(p_fd);
   LOG_ASSERT(mag!=0, "division by zero");
@@ -695,8 +758,20 @@ inline draw_vert draw_fd2Tan(const draw_vert *p_fd, float32 width) {
   return draw_by(p_fd, len_adj);
 }
 
+inline draw_vert64 draw_fd2Tan64(const draw_vert *p_fd, float64 width) {
+  float64 mag=draw_mag64(p_fd);
+  LOG_ASSERT(mag!=0, "division by zero");
+  float64 len_adj=width/mag; //TODO division
+  return draw_by64(p_fd, len_adj);
+}
+
 inline draw_rect draw_boundingBox(const draw_vert *p_0, const draw_vert *p_delta) {
   draw_rect box={ .lt=draw_add(p_0, p_delta), .rb=draw_diff(p_0, p_delta) };
+  return box;
+}
+
+inline draw_rect64 draw_boundingBox64(const draw_vert *p_0, const draw_vert64 *p_delta) {
+  draw_rect64 box={ .lt=draw_add64(p_0, p_delta), .rb=draw_diff64(p_0, p_delta) };
   return box;
 }
 
@@ -705,10 +780,10 @@ inline draw_rect draw_calcTerminalBoxFromTan(const draw_vert *p_0, const draw_ve
   return draw_boundingBox(p_0, &norm);
 }
 
-inline draw_rect draw_calcTerminalBox(const draw_vert *p_0, const draw_vert *p_fd, const float32 half_width) {
-  draw_vert tan=draw_fd2Tan(p_fd, half_width); //normalises *p_fd's magnitude
-  draw_vert norm=draw_norm(&tan); //gets the normal (ie perpendicular)
-  return draw_boundingBox(p_0, &norm);
+inline draw_rect64 draw_calcTerminalBox(const draw_vert *p_0, const draw_vert *p_fd, const float64 half_width) {
+  draw_vert64 tan=draw_fd2Tan64(p_fd, half_width); //normalises *p_fd's magnitude
+  draw_vert64 norm=draw_norm64(&tan); //gets the normal (ie perpendicular)
+  return draw_boundingBox64(p_0, &norm);
 }
 
 inline draw_vert draw_vertRecip(const draw_vert *p_0) {
@@ -751,7 +826,7 @@ inline draw_vert draw_weightedMean(const draw_vert *p_one, const draw_vert *p_tw
   return sum;
 }
 
-inline draw_vert draw_mean(const draw_vert *p_one, const draw_vert *p_two) {
+inline draw_vert draw_mid(const draw_vert *p_one, const draw_vert *p_two) {
   draw_vert sum=draw_add(p_one, p_two);
   return draw_by(&sum, 0.5);
 }
@@ -770,7 +845,15 @@ inline draw_vert draw_fd2Norm(const draw_vert *p_fd, float32 width) {
   return draw_norm(&tan);
 }
 
+extern uint32 largestOffset;
+extern uint32 largestOffsetCol;
 inline void draw_onOffset(uint32 pOffset, uint32 col, const draw_globals *p_globals) {
+  if(pOffset>largestOffset) {
+    largestOffset=pOffset;
+  }
+  if(pOffset==1897998 && (uint32)col>(uint32)largestOffsetCol) {
+    largestOffsetCol=col;
+  }
   draw_atOffset(pOffset, MAX(col, draw_get(pOffset, p_globals)), p_globals);
 }
 
@@ -785,8 +868,13 @@ inline void draw_dot(uint32 x, uint32 y, uint32 col, const draw_globals *p_globa
   draw_onOffset(offset, col, p_globals);
 }
 
+#define IMAGE_BUF_SCREEN_WIDTH 1600
+#define IMAGE_BUF_SCREEN_HEIGHT 2195
 inline void draw_vertDot(const draw_vert *p_0, uint32 col, const draw_globals *p_globals) {
   uint32 x=p_0->x, y=p_0->y;
+  if(x>=IMAGE_BUF_SCREEN_WIDTH || y>=IMAGE_BUF_SCREEN_HEIGHT)  {
+    return;
+  }
   draw_dot(x, y, col, p_globals);
 }
 
@@ -849,7 +937,7 @@ inline uint32 draw_pos2Idx(const draw_scanBrushLog *p_b, const float32 pos) {
 inline uint32 draw_gradIdx2ConstIdx(const draw_grad *p_grad, const uint32 grad_idx) {
   return grad_idx;
 }
-
+/*
 inline float32 draw_gradRow2NewSideM(const draw_grad *p_grad, const float32 row_side_m, const float32 x) {
   return row_side_m-(p_grad->c6*x);
 }
@@ -858,7 +946,7 @@ inline sint32 draw_gradSideIncSgn4FD(const draw_grad *p_grad, const draw_vert *p
   float32 inc=p_grad->c5*p_fd->y-p_grad->c6*p_fd->x;
   return SGN(inc);
 }
-
+*/
 inline float32 draw_mCs2X(float32 ma, float32 mb, float32 ca, float32 cb) {
   LOG_ASSERT(mb-ma!=0, "slope diff of 0 %f, %f", mb, ma);
   return (ca-cb)/(mb-ma);
@@ -1002,24 +1090,23 @@ inline void draw_dotScanRowLeftBnd(float32 x, float32 y, draw_scanFillLog *p_f, 
   if(y<0 || y>=draw_canvasHeight(&p_globals->canvas)) {
     return;
   }
-  LOG_ASSERT(p_f->xs_pairs.p_y_2_starts, "uninitialised starts array");
-  uint32 y_offset=y-p_f->min_y;
-  LOG_ASSERT(y_offset<p_f->size, "out of bounds array assignment / read");
+  LOG_ASSERT(p_f->xs_pairs.p_y_2_starts, "uninitialised starts array when scanning");
   sint32 x_int=(sint32)x;
-
-  p_f->xs_pairs.p_y_2_starts[y_offset]=MIN(p_f->xs_pairs.p_y_2_starts[y_offset], x_int);
+  uint32 y_int=(uint32)y;
+  
+  p_f->xs_pairs.p_y_2_starts[y_int]=MIN(p_f->xs_pairs.p_y_2_starts[y_int], x_int);
 }
 
 inline void draw_dotScanRowRightBnd(float32 x, float32 y, draw_scanFillLog *p_f, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
   if(y<0 || y>=draw_canvasHeight(&p_globals->canvas)) {
     return;
   }
-  LOG_ASSERT(p_f->xs_pairs.p_y_2_ends, "uninitialised ends array");
-  uint32 y_offset=y-p_f->min_y;
-  LOG_ASSERT(y_offset<p_f->size, "out of bounds array assignment / read");
+  LOG_ASSERT(p_f->xs_pairs.p_y_2_ends, "uninitialised ends array when scanning");
   sint32 x_int=(sint32)x; //+1 so rounding down does cut of the end of a row
   x_int+=x_int!=x;
-  p_f->xs_pairs.p_y_2_ends[y_offset]=MAX(p_f->xs_pairs.p_y_2_ends[y_offset], x_int);
+  uint32 y_int=(uint32)y;
+
+  p_f->xs_pairs.p_y_2_ends[y_int]=MAX(p_f->xs_pairs.p_y_2_ends[y_int], x_int);
 }
 
 float32 draw_vertAngBetween(const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2);
@@ -1183,15 +1270,92 @@ inline void draw_brushInitInternal(draw_brush *p_brush, const uint32 col, const 
   draw_blotInit(&p_brush->blot, &p_brush->b, p_globals);
 }
 
-float32 draw_scanFillLogCheckAngle(draw_scanFillLog *p_f, const draw_grad *p_last_grad, const draw_grad *p_grad, const draw_globals *p_globals);
-inline float32 draw_scanLogCheckAngle(draw_scanLog *p_log, const draw_grad *p_last_grad, const draw_grad *p_grad, const draw_globals *p_globals) {
-  return draw_scanFillLogCheckAngle(&p_log->f, p_last_grad, p_grad, p_globals);
+float32 draw_scanFillLogGetAngle(const draw_scanFillLog *p_f, const sint32 ang_idx);
+inline float32 draw_scanLogGetAngle(const draw_scanLog *p_log, const sint32 ang_idx) {
+  return draw_scanFillLogGetAngle(&p_log->f, ang_idx);
 }
 
+void draw_scanFillLogAddAngle(draw_scanFillLog *p_f, const draw_grad *p_grad, const draw_globals *p_globals);
+inline void draw_scanLogAddAngle(draw_scanLog *p_log, const draw_grad *p_grad, const draw_globals *p_globals) {
+  draw_scanFillLogAddAngle(&p_log->f, p_grad, p_globals);
+}
+
+/*
 inline uint32 draw_renderCoreHeight(const draw_renderCore *p_render_core, const draw_scanFillLog *p_f) {
   //sint32 height=(2+p_render_core->real_max_y-p_f->min_y);  //2+ for rounding error fix mentioned above plus accounting for our call to draw_bottomRow below (to handle partial pixel overflow in the y dim)
   //return MAX(0, height);
   return p_render_core->height;
+}
+*/
+
+/*
+static inline draw_vert draw_lineIntersection(float32 m1, float32 c1, float32 m2, float32 c2) {
+  float32 x=(c2-c1)/(m1-m2);
+  draw_vert result={ .x=x, .y=m1*x+c1 };
+  return result;
+}
+*/
+static inline draw_vert draw_lineIntersection(draw_vert *p_0, float32 m0, draw_vert *p_1, float32 m1) {
+  bool first_infinite=!isfinite(m0);
+  bool second_infinite=!isfinite(m1);
+
+  float32 x, selected_m=m0;
+  float32 selected_c;
+  
+  if(first_infinite ^ second_infinite) {
+    if(first_infinite) {
+      x=p_0->x;
+      selected_m=m1;
+      selected_c=rtu_lineC(p_1->x, p_1->y, selected_m);
+    } else {
+      x=p_1->x;
+      selected_c=rtu_lineC(p_0->x, p_0->y, selected_m);
+    }
+  } else {
+    /* y=m0*x+c0
+       y=m1*x+c1
+       => 0=x*(m0-m1)+c0-c1
+       => x*(m0-m1)=c1-c0
+       => x=(c1-c0)/(m0-m1)
+    */
+
+    float32 c0=rtu_lineC(p_0->x, p_0->y, m0), c1=rtu_lineC(p_1->x, p_1->y, m1);
+    x=(c1-c0)/(m0-m1);
+    selected_c=c0;
+  }
+  
+  draw_vert result={ .x=x, .y=selected_m*x+selected_c };
+  return result;
+}
+/*
+static inline sint32 draw_sideOfLine(draw_vert *p_v1, draw_vert *p_v2, draw_vert *p_pt) {
+  return BSGN((p_pt->x - p_v1->x)*(p_v2->y - p_v1->y) - (p_pt->y - p_v1->y)*(p_v2->x - p_v1->x));
+}
+*/
+//returns +1 when *p_pt is on or above the line y=mx+c, -1 otherwise
+static inline sint32 draw_yDistAboveLine(float32 m, float32 c, const draw_vert *p_pt) {
+  return -m * p_pt->x + p_pt->y -c;
+}
+
+static inline sint32 draw_sideOfLine(float32 m, float32 c, const draw_vert *p_pt) {
+  return BSGN(draw_yDistAboveLine(m, c, p_pt));
+}
+
+static inline void draw_recordFD(
+		       draw_scanLog *p_log, 
+		       draw_grads *p_grad_agg,
+		       const draw_vert *p_0, 
+		       const draw_vert *p_fd, 
+		       const uint32 iter,
+		       draw_globals *p_globals
+		   ) {
+  if(!p_0) {
+    return;
+  }
+  draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
+  p_grad->fd_signed=*p_fd;
+  DO_ASSERT(p_grad->fd_recorded=true);
+  return;
 }
 
 bool draw_tail(draw_vert *p_0, draw_vert *p_1, draw_onPtCb *p_on_pt_cb, draw_scanFillLog *p_arg, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals);
@@ -1204,7 +1368,7 @@ draw_vert draw_plotBez(
 		    draw_gradsIf *p_grad_agg, 
 		    draw_globals *p_globals
 		    );
-void draw_thickQuad(const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2, draw_scanBrushLog *p_b, draw_globals *p_globals);
+draw_vert draw_thickQuad(const draw_vert *p_0, const draw_vert *p_1, const draw_vert *p_2, draw_scanBrushLog *p_b, draw_globals *p_globals);
 void draw_thickBlot(const draw_vert *p_box_dims, const draw_vert *p_0, const uint32 col, const uint32 breadth, const bool right, const bool down);
 void draw_dotSimple(const float32 x, const float32 y, const bool x_dom, const uint32 col);
 
@@ -1280,6 +1444,7 @@ sint32 draw_gradReferenceVert(const draw_gradReference *p_grad_ref);
 draw_grad *draw_gradsGradPtr(draw_grads *p_grad_agg, const uint32 q);
 void draw_vertNullableInit(draw_vertNullable *p_vertInstPtr, const draw_vert *p_0);
 void draw_blotContinue(const draw_vert *p_0, const draw_vert *p_fd, const float32 breadth, const float32 blur_width, const uint32 col, draw_globals *p_globals);
+void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_first_fd, draw_vert *p_last_fd, draw_globals *p_globals);
 
 #endif
 

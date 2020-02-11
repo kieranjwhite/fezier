@@ -34,6 +34,7 @@ extern inline uint32 rtu_bound(uint32 min, uint32 x, uint32 max);
 extern inline float32 rtu_altAng(float32 ang);
 extern inline void rtu_memZero(void *p_mem, uint32 size);
 extern inline bool rtu_similarToZero(float32 fst, float32 fuzz);
+extern inline bool rtu_64similarToZero64(float64 fst, float64 fuzz);
 extern inline bool rtu_similar(float32 fst, float32 snd, float32 fuzz);
 extern inline uint32 rtu_factorial(uint32 n);
 extern float32 rtu_div(float32 dividend, uint32 divisor, const rtu_globals *p_globals);
@@ -387,3 +388,4 @@ sint8 *rtu_test(void) {
   mu_run_test(rtu_test_fastATan);
   return 0;
 }
+

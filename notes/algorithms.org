@@ -38,3 +38,8 @@ y &= m_2 \times x +c_2
 *** 3rd attempt
 **** Assume we know the equation for the first segment that is parallel to $S_1$ and a distance of $d$ from it.
 ***** $y=
+** Deriving quad vertices
+\begin{align*}
+{v3}_y &= {fd_signed}_{grad}{v3}_x+c
+\end{align*}
+
