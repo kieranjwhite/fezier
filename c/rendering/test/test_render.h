@@ -19,6 +19,15 @@
 
 #include <SDL.h>
 
+//define FULL_RENDER in order to render image. Don't define FULL_RENDER when profiling
+//#define FULL_RENDER
+
+#ifdef FULL_RENDER
+#define ITERATIONS 1
+#else
+#define ITERATIONS 50
+#endif
+
 #define TEST_H
 void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globals);
 #endif

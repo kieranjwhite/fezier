@@ -19,12 +19,14 @@
 #include <SDL.h>
 
 #include "image_buf.h"
+#include "test_render.h"
 #include "../../types.h"
 #include "../draw.h"
 
 uint32 *G_max_p_dest=NULL;
 
 void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag) {
+#ifdef FULL_RENDER
   /* This function is unoptimised in that is makes no attempt to
    * confine updates to dirty regions of the p_data array. The
    * function is only intended for testing. In an end-product
@@ -43,10 +45,9 @@ void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag)
   uint32 bottom=p_dirty->rb.y;
   uint32 *p_data=p_canvas->p_bitmap;
   SDL_PixelFormat *p_pf=p_surface->format;
-
   uint32 pitch=p_surface->pitch;
-  uint32 pitch_pixels=pitch>>2;
   uint32 *p_start_dest=(uint32 *)(p_surface->pixels);
+  uint32 pitch_pixels=pitch>>2;
   uint32 *p_start_row_dest;
   uint32 *p_dest=p_start_dest;
   for(uint32 r=top; r<bottom; r++) {
@@ -56,7 +57,7 @@ void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag)
 	break;
       }
       uint32 col= *(p_data+(r*fullWidth)+c);
-      //*(p_dest++)=SDL_MapRGBA(p_pf, 
+
       uint32 renderedCol=SDL_MapRGBA(p_pf, 
 				     (col >> 0x10) & 0xff, 
 				     (col >> 0x08) & 0xff, 
@@ -88,6 +89,6 @@ void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag)
     }
     //p_dest=(uint32 *)(((uint8 *)p_start_dest)+r*pitch);
   }
-
+#endif
   draw_canvasResetDirty(p_canvas);
 }

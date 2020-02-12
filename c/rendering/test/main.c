@@ -61,14 +61,6 @@ sint32 main_unit_tests(void) {
 
 sint32 main(sint32 argc, char **argv)
 {
-  //gameTime gt;
-  char *name = argv[0];
-
-  SDL_Surface *screen = NULL;
-  SDL_Event event;
-  SDL_PixelFormat *pf = NULL;
-  uint32 grey;
-
   sint32 screenWidth = IMAGE_BUF_SCREEN_WIDTH;
   sint32 screenHeight = IMAGE_BUF_SCREEN_HEIGHT;
   float32 devicePixelRatio = IMAGE_BUF_PIX_RATIO; /* This indicates
@@ -85,9 +77,15 @@ sint32 main(sint32 argc, char **argv)
 				 *  optimisation should be performed
 				 */
   
-  bool done = false;
-
   // Try to initialize SDL. If it fails, then give up.
+#ifdef FULL_RENDER
+  SDL_Surface *screen = NULL;
+  char *name = argv[0];
+  SDL_Event event;
+  SDL_PixelFormat *pf = NULL;
+  uint32 grey;
+
+  bool done = false;
 
   if (-1 == SDL_Init(SDL_INIT_EVERYTHING))
     {
@@ -166,7 +164,8 @@ sint32 main(sint32 argc, char **argv)
 					   );
   SDL_Surface *surface = SDL_DisplayFormatAlpha( temp );
   SDL_FreeSurface( temp );
-
+#endif
+  
   draw_globals *p_globals=draw_globalsInit();
   rtu_initFastATan(DRAW_ATAN_DIVISORS, p_globals->p_rtu);
   rtu_initFastDiv(DRAW_DIV_LIMIT, p_globals->p_rtu);
@@ -178,7 +177,13 @@ sint32 main(sint32 argc, char **argv)
   struct timespec start;
   struct timespec now;
   clock_gettime(CLOCK_MONOTONIC, &start);
-  render(screen, surface, p_globals);
+  for(uint32 repeat_idx=0; repeat_idx<ITERATIONS; repeat_idx++) {
+#ifdef FULL_RENDER
+    render(screen, surface, p_globals);
+#else
+    render(NULL, NULL, p_globals);
+#endif
+  }
   clock_gettime(CLOCK_MONOTONIC, &now);
   now.tv_sec -= start.tv_sec;
   if (now.tv_nsec < start.tv_nsec)
@@ -188,7 +193,9 @@ sint32 main(sint32 argc, char **argv)
   } else {
     now.tv_nsec -= start.tv_nsec;
   }
-  LOG_INFO("elapsed: %ld s %ld ns \n", now.tv_sec, now.tv_nsec);
+  REPORT("elapsed: %ld s %ld ns \n", now.tv_sec, now.tv_nsec);
+
+#ifdef FULL_RENDER
   SDL_Flip(screen);
 
   while (!done)
@@ -246,7 +253,8 @@ sint32 main(sint32 argc, char **argv)
   // atexit() call makes this redundant. But, it doesn't
   // hurt and I'd rather be safe than sorry.
   SDL_Quit();
-
+#endif
+  
   if(p_pixels) {
     rtu_memFree(p_pixels);
   }

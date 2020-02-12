@@ -23,6 +23,8 @@
 #include <string.h>
 #include "types.h"
 
+//#define RTU_FAST_ATAN
+
 #ifdef EMSCRIPTEN
 #define M_E 2.71828182845904523536
 #define M_LOG2E 1.44269504088896340736
@@ -78,7 +80,7 @@ inline uint32 rtu_abs(sint32 v) {
 #define LOG_ERROR_LEVEL 2
 #define LOG_NO_REPORTING_LEVEL 3
 
-#define LOG_LEVEL LOG_INFO_LEVEL
+#define LOG_LEVEL LOG_ERROR_LEVEL
 
 typedef struct {
   uint32 divisor_limit;
@@ -105,6 +107,7 @@ void rtu_destroyATan(rtu_globals *p_globals);
 void rtu_initFastDiv(uint32 end_plus_one, rtu_globals *p_globals);
 void rtu_destroyDiv(rtu_globals *p_globals);
 
+#define REPORT(...) rtu_log("MESSAGE ", __FILE__, __LINE__,  __VA_ARGS__);
 
 #if LOG_LEVEL <= LOG_ERROR_LEVEL
 
@@ -223,6 +226,7 @@ inline float32 rtu_fastDiv(float32 dividend, uint32 divisor, const rtu_globals *
 }
 
 inline float32 rtu_fastATan(const float32 slope, const rtu_globals *p_globals) {
+#ifdef RTU_FAST_ATAN
   /* Assumes divisor is p_globals->atan_divisor, slope_dividen>=0.
    * Returns values between -pi and pi inclusive
    */
@@ -242,6 +246,9 @@ inline float32 rtu_fastATan(const float32 slope, const rtu_globals *p_globals) {
   }
   
   return pos_tan*multiplier;
+#else
+  return ATAN32(slope);
+#endif
 }
 
 inline float32 rtu_div(float32 dividend, uint32 divisor, const rtu_globals *p_globals) {

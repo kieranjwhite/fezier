@@ -108,9 +108,9 @@ void rtu_initFastDiv(uint32 end_plus_one, rtu_globals *p_globals) {
   }
 }
 
-#if 1
 //this function is actually slower than a normal atanf invocation
 void rtu_initFastATan(const uint32 divisor, rtu_globals *p_globals) {
+#ifdef RTU_FAST_ATAN
   /* The table will have divisor+1 elements
    */
   if(divisor==0) {
@@ -136,8 +136,9 @@ void rtu_initFastATan(const uint32 divisor, rtu_globals *p_globals) {
       LOG_ASSERT(false, "failed to malloc %u", bytes);
     }
   }
-}
 #endif
+}
+
 void rtu_destroyDiv(rtu_globals *p_globals) {
   if(p_globals->p_div_table) {
     rtu_memFree(p_globals->p_div_table);
@@ -148,12 +149,14 @@ void rtu_destroyDiv(rtu_globals *p_globals) {
 }
 
 void rtu_destroyATan(rtu_globals *p_globals) {
+#ifdef RTU_FAST_ATAN
   if(p_globals->p_atan_table) {
     rtu_memFree(p_globals->p_atan_table);
     p_globals->p_atan_table=NULL;
   } else {
     LOG_ASSERT(false, "p_atan_table not initialised");
   }
+#endif
 }
 
 uint32 G_RTU_LITTLE_ENDIAN=-1;
@@ -281,6 +284,7 @@ void rtu_memFree(void *p_mem) {
 }
 
 static sint8 *rtu_test_fastATan(void) {
+#ifdef RTU_FAST_ATAN
   rtu_globals *p_globals=rtu_globalsInit();
   uint32 divisors=2;
   rtu_initFastATan(divisors, p_globals);
@@ -381,6 +385,7 @@ static sint8 *rtu_test_fastATan(void) {
   
   rtu_destroyATan(p_globals);
   rtu_globalsDestroy(p_globals);
+#endif
   return 0;
 }
 
