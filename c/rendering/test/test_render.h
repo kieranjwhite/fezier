@@ -20,7 +20,7 @@
 #include <SDL.h>
 
 //define FULL_RENDER in order to render image. Don't define FULL_RENDER when profiling
-//#define FULL_RENDER
+#define FULL_RENDER
 
 #ifdef FULL_RENDER
 #define ITERATIONS 1

@@ -1,6 +1,7 @@
 #include <SDL.h>
 
 #include "image_buf.h"
+#include "test_render.h"
 #include "../../types.h"
 #include "../draw.h"
 
