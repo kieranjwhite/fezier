@@ -705,41 +705,61 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   
   float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc;
   //LOG_INFO("onX start x: %i, end_x: %i y: %u", x, seg.end_x,y);
-  for(; x<seg.end_x; x++) {
-    DO_INFO(p_globals->draw_pixels++);
-    //bounds are sorted by x
+  if(idx==0) {
+    for(; x<seg.end_x; x++) {
+      DO_INFO(p_globals->draw_pixels++);
+      //bounds are sorted by x
     
-    if(idx!=0) {
-      break;
-    }
+      //if(idx!=0) {
+      //  break;
+      //}
     
-    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
-    pos+=seg.p_grad->default_pos_inc;
-    idx+=pos>p_b->grad_consts.threshes[0];
-    opacity+=inc_per_x;
-  }
-  idx+=pos>=p_b->grad_consts.threshes[1];
-  for(; x<seg.end_x; x++) {
-    DO_INFO(p_globals->draw_pixels++);
-    //bounds are sorted by x
-    
-    if(idx!=1) {
-      break;
-    }
+      draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
+      pos+=seg.p_grad->default_pos_inc;
 
-    /* Invoking draw_onOffset here provides us with a single
-     * chokepoint (the draw_onOffset function) via which all pixels
-     * are rendered. It reduces the number of breakpoints that need to
-     * be set when debugging rendering issues.
-     * 
-     */
-    #if LOG_LEVEL <= LOG_ASSERT_LEVEL
-    draw_onOffset(seg.row_start_offset+x, p_b->col, p_globals);
-    #else
-    draw_atOffset(seg.row_start_offset+x, p_b->col, p_globals);
-    #endif
-    pos+=seg.p_grad->default_pos_inc;
-    idx+=pos>=p_b->grad_consts.threshes[1];
+      opacity+=inc_per_x;
+      if(pos>p_b->grad_consts.threshes[0]) {
+	idx++;
+	if(idx!=0) {
+	  x++;
+	  break;
+	}
+      }
+      //idx+=pos>p_b->grad_consts.threshes[0];
+    }
+  }
+  
+  idx+=pos>=p_b->grad_consts.threshes[1];
+  if(idx==1) {
+    for(; x<seg.end_x; x++) {
+      DO_INFO(p_globals->draw_pixels++);
+      //bounds are sorted by x
+    
+      //if(idx!=1) {
+      //break;
+      //}
+
+      /* Invoking draw_onOffset here provides us with a single
+       * chokepoint (the draw_onOffset function) via which all pixels
+       * are rendered. It reduces the number of breakpoints that need to
+       * be set when debugging rendering issues.
+       * 
+       */
+#if LOG_LEVEL <= LOG_ASSERT_LEVEL
+      draw_onOffset(seg.row_start_offset+x, p_b->col, p_globals);
+#else
+      draw_atOffset(seg.row_start_offset+x, p_b->col, p_globals);
+#endif
+      pos+=seg.p_grad->default_pos_inc;
+      //idx+=pos>=p_b->grad_consts.threshes[1];
+      if(pos>p_b->grad_consts.threshes[1]) {
+	idx++;
+	if(idx!=1) {
+	  x++;
+	  break;
+	}
+      }
+    }
   }
   opacity=p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2]));
   for(; x<seg.end_x; x++) {
@@ -782,32 +802,50 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
   sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
   float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*(-pos_dec);
   //LOG_INFO("onY start x: %i, end_x: %i y: %u", x, seg.end_x, y);
-  for(; x<seg.end_x; x++) {
-    DO_INFO(p_globals->draw_pixels++);
+  if(idx==0) {
+    for(; x<seg.end_x; x++) {
+      DO_INFO(p_globals->draw_pixels++);
     
-    if(idx!=0) {
-      break;
-    }
+      //if(idx!=0) {
+      //  break;
+      //}
 
-    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
-    pos-=pos_dec;
-    idx+=pos>p_b->grad_consts.threshes[0];
-    opacity+=inc_per_x;
+      draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
+      pos-=pos_dec;
+      opacity+=inc_per_x;
+      if(pos>p_b->grad_consts.threshes[0]) {
+	idx++;
+	if(idx!=0) {
+	  x++;
+	  break;
+	}
+      }
+      //idx+=pos>p_b->grad_consts.threshes[0];
+    }
   }
   idx+=pos>=p_b->grad_consts.threshes[1];
-  for(; x<seg.end_x; x++) {
-    DO_INFO(p_globals->draw_pixels++);
+  if(idx==1) {
+    for(; x<seg.end_x; x++) {
+      DO_INFO(p_globals->draw_pixels++);
 
-    if(idx!=1) {
-      break;
+      //if(idx!=1) {
+      //break;
+      //}
+#if LOG_LEVEL <= LOG_ASSERT_LEVEL
+      draw_onOffset(seg.row_start_offset+x, p_b->col, p_globals);
+#else
+      draw_atOffset(seg.row_start_offset+x, p_b->col, p_globals);
+#endif
+      pos-=pos_dec;
+      //idx+=pos>=p_b->grad_consts.threshes[1];
+      if(pos>p_b->grad_consts.threshes[1]) {
+	idx++;
+	if(idx!=1) {
+	  x++;
+	  break;
+	}
+      }
     }
-    #if LOG_LEVEL <= LOG_ASSERT_LEVEL
-    draw_onOffset(seg.row_start_offset+x, p_b->col, p_globals);
-    #else
-    draw_atOffset(seg.row_start_offset+x, p_b->col, p_globals);
-    #endif
-    pos-=pos_dec;
-    idx+=pos>=p_b->grad_consts.threshes[1];
   }
   opacity=p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2]));
   for(; x<seg.end_x; x++) {

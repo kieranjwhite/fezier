@@ -193,7 +193,7 @@ sint32 main(sint32 argc, char **argv)
   } else {
     now.tv_nsec -= start.tv_nsec;
   }
-  REPORT("elapsed: %ld s %ld ns \n", now.tv_sec, now.tv_nsec);
+  REPORT("elapsed: %ld s %09ld ns \n", now.tv_sec, now.tv_nsec);
 
 #ifdef FULL_RENDER
   SDL_Flip(screen);
