@@ -106,19 +106,6 @@ typedef struct {
   DO_ASSERT(bool fd_recorded);
   bool initialised;
   bool on_x;
-
-  //draw_vert bisect_last_mid; //done
-  //bool bisect_has_last_mid; //done
-  
-  //bool bisect_has_bisector_normal; //done
-  //draw_vert bisector_normal; //done, not a unit vector, nor is its magnitude in any way related to the brush width
-  //draw_vert segment_fd_signed; //done, slope between mid and bisect_last_mid, normalised, required in draw_coreRender when deciding when to reorder vertices
-
-  //bool bisect_initialised;
-  //draw_vert bisect_half_delta;
-  //bool bisect_on_x;
-  //float32 bisect_slope_recip; //actually this is only the slope reciprocal where x is dominant, otherwise x is the denominator and then it's the slope
-  //float32 bisect_default_pos_inc; //how much pos increases for every change of +1 in x where draw_grad.on_x is true or y othersize
 } draw_grad;
 
 typedef struct {
@@ -1086,7 +1073,8 @@ inline sint32 draw_quadrant2Vert(const uint32 quadrant) {
   return (((quadrant==0) | (quadrant==3)) << 1) -1;
 }
 
-inline void draw_dotScanRowLeftBnd(float32 x, float32 y, draw_scanFillLog *p_f, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
+/*
+inline void draw_dotScanRowLeftBndCheckless(float32 x, float32 y, draw_scanFillLog *p_f, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
   if(y<0 || y>=draw_canvasHeight(&p_globals->canvas)) {
     return;
   }
@@ -1095,7 +1083,36 @@ inline void draw_dotScanRowLeftBnd(float32 x, float32 y, draw_scanFillLog *p_f, 
   uint32 y_int=(uint32)y;
   
   p_f->xs_pairs.p_y_2_starts[y_int]=MIN(p_f->xs_pairs.p_y_2_starts[y_int], x_int);
+  //p_f->xs_pairs.p_y_2_starts[y_int]=x_int;
 }
+*/
+
+inline void draw_dotScanRowLeftBnd(float32 x, float32 y, draw_scanFillLog *p_f, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
+  if(y<0 || y>=draw_canvasHeight(&p_globals->canvas)) {
+    return;
+  }
+  LOG_ASSERT(p_f->xs_pairs.p_y_2_starts, "uninitialised starts array when scanning");
+  sint32 x_int=(sint32)x;
+  uint32 y_int=(uint32)y;
+  
+  //p_f->xs_pairs.p_y_2_starts[0]=x_int;
+  p_f->xs_pairs.p_y_2_starts[y_int]=MIN(p_f->xs_pairs.p_y_2_starts[y_int], x_int);
+}
+
+/*
+inline void draw_dotScanRowRightBndCheckless(float32 x, float32 y, draw_scanFillLog *p_f, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
+  if(y<0 || y>=draw_canvasHeight(&p_globals->canvas)) {
+    return;
+  }
+  LOG_ASSERT(p_f->xs_pairs.p_y_2_ends, "uninitialised ends array when scanning");
+  sint32 x_int=(sint32)x; //+1 so rounding down does cut of the end of a row
+  x_int+=x_int!=x;
+  uint32 y_int=(uint32)y;
+
+  p_f->xs_pairs.p_y_2_ends[y_int]=MAX(p_f->xs_pairs.p_y_2_ends[y_int], x_int);
+  //p_f->xs_pairs.p_y_2_ends[y_int]=x_int;
+}
+*/
 
 inline void draw_dotScanRowRightBnd(float32 x, float32 y, draw_scanFillLog *p_f, const draw_gradsIf *p_grad_agg, const uint32 iter, draw_globals *p_globals) {
   if(y<0 || y>=draw_canvasHeight(&p_globals->canvas)) {
@@ -1106,6 +1123,7 @@ inline void draw_dotScanRowRightBnd(float32 x, float32 y, draw_scanFillLog *p_f,
   x_int+=x_int!=x;
   uint32 y_int=(uint32)y;
 
+  //p_f->xs_pairs.p_y_2_ends[0]=x_int;
   p_f->xs_pairs.p_y_2_ends[y_int]=MAX(p_f->xs_pairs.p_y_2_ends[y_int], x_int);
 }
 
@@ -1419,7 +1437,6 @@ void draw_gradMarkDirty(const draw_grad *p_grad, const draw_gradTranslated *p_gr
 void draw_rectIntReify(draw_rectInt *p_orig);
 bool draw_rectIntFilled(const draw_rectInt *p_rect);
 void draw_canvasIgnoreDirt(draw_canvas *p_canvas);
-void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h, const float32 devicePixelRatio);
 void draw_canvasWipe(draw_canvas *p_canvas, const draw_globals *p_globals);
 void draw_canvasClearAll(draw_canvas *p_canvas);
 void draw_coordToIterInit(draw_coordToIter *p_c2I, draw_grads *p_grad_agg, const draw_vert *p_origin, const sint32 q, const draw_strokeWidth *p_w, const uint32 start_iter, const uint32 end_iter);
