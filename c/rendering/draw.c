@@ -700,8 +700,9 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   float32 pos=(x-cen_x)*seg.p_grad->default_pos_inc+p_b->w.half_width;  //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_b->w.width)
   //float32 pos=0;
   uint32 idx=draw_pos2Idx(p_b, pos); //0 if feathered in the first half, 1 if not feathered, 2 if feathered in the 2nd half
-  sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
-  float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc;
+  sint32 opacity=p_b->opacity_frac*(p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0])));
+  
+  float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc*p_b->opacity_frac;
   //LOG_INFO("onX start x: %i, end_x: %i y: %u", x, seg.end_x,y);
   for(; x<seg.end_x; x++) {
     DO_INFO(p_globals->draw_pixels++);
@@ -711,7 +712,7 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
       break;
     }
     
-    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity*p_b->opacity_frac))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
+    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
     pos+=seg.p_grad->default_pos_inc;
     idx+=pos>p_b->grad_consts.threshes[0];
     opacity+=inc_per_x;
@@ -739,13 +740,13 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
     pos+=seg.p_grad->default_pos_inc;
     idx+=pos>=p_b->grad_consts.threshes[1];
   }
-  opacity=p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2]));
+  opacity=p_b->opacity_frac*(p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2])));
   for(; x<seg.end_x; x++) {
     LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
     DO_INFO(p_globals->draw_pixels++);
     //bounds are sorted by x
     
-    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity*p_b->opacity_frac))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
+    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
     DO_ASSERT(pos+=seg.p_grad->default_pos_inc);
     opacity-=inc_per_x;
   }
@@ -777,8 +778,8 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
 
   pos+=p_b->w.half_width; //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_log->w.width)
   float32 idx=draw_pos2Idx(p_b, pos);
-  sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
-  float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*(-pos_dec);
+  sint32 opacity=p_b->opacity_frac*(p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0])));
+  float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*(-pos_dec)*p_b->opacity_frac;
   //LOG_INFO("onY start x: %i, end_x: %i y: %u", x, seg.end_x, y);
   for(; x<seg.end_x; x++) {
     DO_INFO(p_globals->draw_pixels++);
@@ -787,7 +788,7 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
       break;
     }
 
-    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity*p_b->opacity_frac))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
+    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
     pos-=pos_dec;
     idx+=pos>p_b->grad_consts.threshes[0];
     opacity+=inc_per_x;
@@ -807,12 +808,12 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
     pos-=pos_dec;
     idx+=pos>=p_b->grad_consts.threshes[1];
   }
-  opacity=p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2]));
+  opacity=p_b->opacity_frac*(p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2])));
   for(; x<seg.end_x; x++) {
     LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
     DO_INFO(p_globals->draw_pixels++);
 
-    uint32 col=p_b->rgb | ((((uint32)((opacity>0)*opacity*p_b->opacity_frac))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK);
+    uint32 col=p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK);
     //if(y==541 && (seg.iter==40 || seg.iter==41)) {
     //  LOG_INFO("x: %f y: %u col: 0x%x", x, y, col);
     //}
