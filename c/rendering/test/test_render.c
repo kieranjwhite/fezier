@@ -1,6 +1,7 @@
 #include <SDL.h>
 
 #include "image_buf.h"
+#include "test_render.h"
 #include "../../types.h"
 #include "../draw.h"
 
@@ -52,7 +53,9 @@ void quadTo(draw_stroke *p_stroke, draw_vert *p_ctrl, draw_vert *p_end, draw_glo
 }
 
 void blit(SDL_Surface *p_surface, SDL_Surface *p_screen) {
+#ifdef FULL_RENDER
   SDL_BlitSurface(p_surface, NULL, p_screen, NULL );
+#endif
 }
 
 void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globals) {
