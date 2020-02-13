@@ -832,26 +832,13 @@ inline draw_vert draw_fd2Norm(const draw_vert *p_fd, float32 width) {
   return draw_norm(&tan);
 }
 
-extern uint32 largestOffset;
-extern uint32 largestOffsetCol;
 inline void draw_onOffset(uint32 pOffset, uint32 col, const draw_globals *p_globals) {
-  if(pOffset>largestOffset) {
-    largestOffset=pOffset;
-  }
-  if(pOffset==1897998 && (uint32)col>(uint32)largestOffsetCol) {
-    largestOffsetCol=col;
-  }
   draw_atOffset(pOffset, MAX(col, draw_get(pOffset, p_globals)), p_globals);
 }
 
 inline void draw_dot(uint32 x, uint32 y, uint32 col, const draw_globals *p_globals) {
   uint32 offset=(y*draw_canvasRenderedWidth(&p_globals->canvas))+x;
   LOG_ASSERT(offset<draw_canvasRenderedWidth(&p_globals->canvas)*draw_canvasHeight(&p_globals->canvas), "offset %u too large (limit: %u)", offset, draw_canvasRenderedWidth(&p_globals->canvas)*draw_canvasHeight(&p_globals->canvas));
-  /*
-  if(x==414 && y==226 && col==0x9c07abff) {
-    LOG_ERROR("col: 0x%8x", col);
-  }
-  */
   draw_onOffset(offset, col, p_globals);
 }
 
