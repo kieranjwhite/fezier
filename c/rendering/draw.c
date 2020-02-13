@@ -700,9 +700,10 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   float32 pos=(x-cen_x)*seg.p_grad->default_pos_inc+p_b->w.half_width;  //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_b->w.width)
   //float32 pos=0;
   uint32 idx=draw_pos2Idx(p_b, pos); //0 if feathered in the first half, 1 if not feathered, 2 if feathered in the 2nd half
-  sint32 opacity=p_b->opacity_frac*(p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0])));
+  sint32 opacity=p_b->grad_consts.start_opacity[0]+
+				    p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
   
-  float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc*p_b->opacity_frac;
+  float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc;
   //LOG_INFO("onX start x: %i, end_x: %i y: %u", x, seg.end_x,y);
   for(; x<seg.end_x; x++) {
     DO_INFO(p_globals->draw_pixels++);
@@ -740,7 +741,7 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
     pos+=seg.p_grad->default_pos_inc;
     idx+=pos>=p_b->grad_consts.threshes[1];
   }
-  opacity=p_b->opacity_frac*(p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2])));
+  opacity=p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2]));
   for(; x<seg.end_x; x++) {
     LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
     DO_INFO(p_globals->draw_pixels++);
@@ -778,8 +779,8 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
 
   pos+=p_b->w.half_width; //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_log->w.width)
   float32 idx=draw_pos2Idx(p_b, pos);
-  sint32 opacity=p_b->opacity_frac*(p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0])));
-  float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*(-pos_dec)*p_b->opacity_frac;
+  sint32 opacity=p_b->grad_consts.start_opacity[0]+p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
+  float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*(-pos_dec);
   //LOG_INFO("onY start x: %i, end_x: %i y: %u", x, seg.end_x, y);
   for(; x<seg.end_x; x++) {
     DO_INFO(p_globals->draw_pixels++);
@@ -808,7 +809,7 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
     pos-=pos_dec;
     idx+=pos>=p_b->grad_consts.threshes[1];
   }
-  opacity=p_b->opacity_frac*(p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2])));
+  opacity=p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2]));
   for(; x<seg.end_x; x++) {
     LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
     DO_INFO(p_globals->draw_pixels++);
@@ -1226,14 +1227,14 @@ void draw_gradInitFill(draw_grad *p_grad, const draw_strokeWidth *p_w, const dra
   }
 }
 
-void draw_gradConstsInit(draw_gradConsts *p_consts, const draw_strokeWidth *p_w) {
+void draw_gradConstsInit(draw_gradConsts *p_consts, const draw_strokeWidth *p_w, const float32 opacity_frac) {
   p_consts->opacity_scaled=DRAW_OPACITY_MAX_SCALED;
   uint32 opacity_lsbits=(1<<DRAW_OPACITY_SCALED_SHIFT)-1;
   p_consts->opacity_scaled|=opacity_lsbits; //opacity_scaled is set to the opacity shifted to correct position with all less significant bits set to 1
   sint32 opacity_grad_per_pos=(sint32)(p_consts->opacity_scaled*p_w->half_blur_width_recip);
-  p_consts->p_incs_per_pos[0]=opacity_grad_per_pos;
+  p_consts->p_incs_per_pos[0]=opacity_grad_per_pos*opacity_frac;
   p_consts->p_incs_per_pos[1]=0;
-  p_consts->p_incs_per_pos[2]=-p_consts->p_incs_per_pos[0];
+  p_consts->p_incs_per_pos[2]=-opacity_grad_per_pos*opacity_frac;
   p_consts->p_incs_per_pos[3]=0;
 
   //the values of fst_thresh and snd_thresh as well as draw_grad.start_opacity[0] and draw_grad_start_opacity[3] are crucial in ensuring that there is no seam at the draw_grad.on_x and !draw_grad.on_x boundary
@@ -1253,7 +1254,7 @@ void draw_gradConstsInit(draw_gradConsts *p_consts, const draw_strokeWidth *p_w)
 
   p_consts->start_opacity[0]=0; //setting this field to zero breaks the seam where a draw_grad.on_x meets !draw_grad.on_x
   p_consts->start_opacity[1]=p_consts->opacity_scaled;
-  p_consts->start_opacity[2]=p_consts->opacity_scaled;
+  p_consts->start_opacity[2]=opacity_frac*p_consts->opacity_scaled;
   p_consts->start_opacity[3]=0; //setting this field to zero breaks the seam where a draw_grad.on_x meets !draw_grad.on_x
 
 }
@@ -1965,7 +1966,7 @@ void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const 
   //LOG_INFO("mag: %u breadth: %f blur: %f", p_b->mag_factor, breadth, blur_width);
   draw_strokeWidthInit(&p_b->w, breadth*p_b->scaling_factor, blur_width*p_b->scaling_factor);
   
-  draw_gradConstsInit(&p_b->grad_consts, &p_b->w);
+  draw_gradConstsInit(&p_b->grad_consts, &p_b->w, p_b->opacity_frac);
 }
 
 uint32 draw_scanBrushLogMagFactor(const draw_scanBrushLog *p_b) {

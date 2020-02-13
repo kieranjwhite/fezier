@@ -187,12 +187,12 @@ typedef struct {
 
 typedef struct {
   uint32 opacity_scaled;
-  sint32 p_incs_per_pos[4]; //how much a change of 1 along the iter normal changes the opacity
+  float32 p_incs_per_pos[4]; //how much a change of 1 along the iter normal changes the opacity
 
   //compare threshes to positional sum
   float32 threshes[4]; //pos values. 0th full opacity start, 1st full opacity end, 2nd no opacity start, 3rd UINT_MAX, but if any region has a width of zero then element will not be provided and any later elements will be shifted down to fill the hole
   float32 start_threshes[4];
-  uint32 start_opacity[4]; //the 4 elements here will always be populated and are as follows 0th opacity from start, 1st opacity at start of full opacity region, 2nd opacity at end of full opacity region, 3rd opacity at end
+  float32 start_opacity[4]; //the 4 elements here will always be populated and are as follows 0th opacity from start, 1st opacity at start of full opacity region, 2nd opacity at end of full opacity region, 3rd opacity at end
 
   //float32 bisect_threshes[4]; //pos values. 0th full opacity start, 1st full opacity end, 2nd no opacity start, 3rd UINT_MAX, but if any region has a width of zero then element will not be provided and any later elements will be shifted down to fill the hole
   //float32 bisect_start_threshes[4];
