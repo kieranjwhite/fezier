@@ -21,6 +21,7 @@
 #include <stdlib.h>
 
 #include "draw.h"
+#include "float.h"
 #include "../minunit.h"
 #include "../rtu.h"
 #include "../types.h"
@@ -1283,7 +1284,7 @@ void draw_gradConstsInit(draw_gradConsts *p_consts, const draw_strokeWidth *p_w,
   p_consts->threshes[0]=fst_thresh;
   p_consts->threshes[1]=snd_thresh;
   p_consts->threshes[2]=p_w->width;
-  p_consts->threshes[3]=UINT_MAX;
+  p_consts->threshes[3]=FLT_MAX;
 
   p_consts->start_threshes[0]=0;
   p_consts->start_threshes[1]=p_consts->threshes[0];

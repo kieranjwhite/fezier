@@ -20,7 +20,6 @@ jlong Java_com_hourglassapps_tiles_render_CRenderEngine_renderInit(JNIEnv* env, 
 
 		p_globals->all_xs_pairs.p_y_2_ends = rtu_memAlloc(sizeof(sint32) * h);
 		if (p_globals->all_xs_pairs.p_y_2_ends == NULL) {
-			rtu_memFree(p_globals->all_xs_pairs.p_y_2_starts);
 			goto error;
 		}
 
@@ -29,11 +28,11 @@ jlong Java_com_hourglassapps_tiles_render_CRenderEngine_renderInit(JNIEnv* env, 
 		draw_canvasInit(&p_globals->canvas, w, h, -1);
 		return (jlong)p_globals;
 	}
-	return NULL;
+	return (jlong)NULL;
 
 	error:
-		rtu_globalsDestroy(p_globals);
-		return NULL;
+		draw_destroy(p_globals);
+		return (jlong)NULL;
 
 }
 

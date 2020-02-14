@@ -24,13 +24,14 @@
 */
 
 #ifndef MIN_UNIT_H
+#define MIN_UNIT_H
 
 #include "rtu.h"
 #include "types.h"
 
 #define G_MU_LINE_LEN 256
 
-sint8 G_MU_LINE[G_MU_LINE_LEN];
+extern sint8 G_MU_LINE[];
 
 #define mu_assert(message, test) do { \
     if (!(test)  && rtu_onFail()) {					\
