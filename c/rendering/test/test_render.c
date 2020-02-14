@@ -8,9 +8,6 @@
 //#define X_OFF 400
 //#define Y_OFF 400
 //#define MAG 8
-#define X_OFF 0
-#define Y_OFF 0
-#define MAG 2
 
 void wipeAndMove(SDL_Surface *p_surface, draw_stroke *p_stroke, draw_vert *p_pt, draw_globals *p_globals) {
 #ifdef FULL_RENDER
@@ -23,10 +20,8 @@ void wipeAndMove(SDL_Surface *p_surface, draw_stroke *p_stroke, draw_vert *p_pt,
   SDL_FillRect(p_surface, NULL, transparent);
 #endif
   
-  p_pt->x-=X_OFF;
-  p_pt->y-=Y_OFF;
-  p_pt->x*=MAG;
-  p_pt->y*=MAG;
+  p_pt->x=p_pt->x*MAG+X_OFF;
+  p_pt->y=p_pt->y*MAG+Y_OFF;
   
   draw_strokeMoveTo(p_stroke, p_pt, p_globals);
 }
@@ -36,15 +31,11 @@ void brushInit(draw_brush *p_brush, const uint32 col, const float32 breadth, con
 }
 
 void quadTo(draw_stroke *p_stroke, draw_vert *p_ctrl, draw_vert *p_end, draw_globals *p_globals) {
-  p_ctrl->x-=X_OFF;
-  p_ctrl->y-=Y_OFF;
-  p_ctrl->x*=MAG;
-  p_ctrl->y*=MAG;
-  
-  p_end->x-=X_OFF;
-  p_end->y-=Y_OFF;
-  p_end->x*=MAG;
-  p_end->y*=MAG;
+  p_ctrl->x=p_ctrl->x*MAG+X_OFF;
+  p_ctrl->y=p_ctrl->y*MAG+Y_OFF;
+
+  p_end->x=p_end->x*MAG+X_OFF;
+  p_end->y=p_end->y*MAG+Y_OFF;
   
   draw_strokeQuadTo(p_stroke, p_ctrl, p_end, p_globals);
 #ifdef ALL_CAPS

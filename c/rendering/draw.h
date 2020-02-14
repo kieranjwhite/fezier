@@ -174,7 +174,9 @@ typedef struct {
 
 typedef struct {
   float32 breadth;
+#define DRAW_STROKE_WIDTH_MIN_WIDTH 2
   float32 width; //total rendered width of stroke (ie the diameter, saved_width + (blur width>>1))
+  float32 desired_width; //This is what rendered width would be without the  the DRAW_STROKE_WIDTH_MIN_WIDTH limit. Needed for determining opacity when for very narrow strokes
   float32 width_squared;
   float32 width_recip; //1/draw_strokeWidth.width
   float32 half_width; //draw_strokeWidth.width*0.5
@@ -204,7 +206,8 @@ typedef struct {
 typedef struct {
   float32 scaling_factor; // 1>=scaling_factor>0, smaller on high dpi screens and larger, blurrier brushes. canvas width and height and brush blur_width and breadth are multiplied by this amount for scaling optimisation
   uint32 mag_factor; //reciprocal of scaling_factor
-  uint32 col;
+  uint32 assigned_col; //colour argument provided to draw_brushInit
+  uint32 col; //colour after adjusting for strokes narrower than 1 pixel
   uint32 rgb; //col & DRAW_OPACITY_INVERSE_MASK
   uint32 opacity; //col & DRAW_OPACITY_MASK
   float32 opacity_frac; // 1/(col >> DRAW_OPACITY_SHIFT)
@@ -1424,6 +1427,7 @@ void draw_gradMarkDirty(const draw_grad *p_grad, const draw_gradTranslated *p_gr
 void draw_rectIntReify(draw_rectInt *p_orig);
 bool draw_rectIntFilled(const draw_rectInt *p_rect);
 void draw_canvasIgnoreDirt(draw_canvas *p_canvas);
+void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h, const float32 devicePixelRatio);
 void draw_canvasWipe(draw_canvas *p_canvas, const draw_globals *p_globals);
 void draw_canvasClearAll(draw_canvas *p_canvas);
 void draw_coordToIterInit(draw_coordToIter *p_c2I, draw_grads *p_grad_agg, const draw_vert *p_origin, const sint32 q, const draw_strokeWidth *p_w, const uint32 start_iter, const uint32 end_iter);

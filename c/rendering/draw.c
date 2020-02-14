@@ -33,7 +33,7 @@ uint32 largestOffsetCol=0;
 uint8 g_xy_2_quad[][2]={{2,3},{1,0}};
 sint8 g_on_x_and_quad_2_semi_quad[][4]={{1,2,5,6},{0,3,4,7}};
 
-static void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h, const float32 devicePixelRatio);
+void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h, const float32 devicePixelRatio);
 
 bool draw_canvasSetup(draw_canvas *p_canvas, uint32 w, uint32 h, uint32* p_pixels) {
   p_canvas->p_bitmap=p_pixels;
@@ -264,7 +264,7 @@ void draw_globalsDestroy(draw_globals *p_globals) {
   }
 }
 
-static void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h, const float32 devicePixelRatio) {
+void draw_canvasInit(draw_canvas *p_canvas, const uint32 w, const uint32 h, const float32 devicePixelRatio) {
   /* devicePixelRatio indicates the display's pixel density. This
    * value is needed for scaling optimisation. A larger value
    * indicates a higher dpi display. PC monitors typically return a
@@ -1968,6 +1968,7 @@ sint32 draw_tailArr(const uint32 start_iter, const float32 step, draw_vert *p_pt
 */
 void draw_strokeWidthInit(draw_strokeWidth *p_w, const float32 breadth, const float32 blur_width) {
   p_w->breadth=breadth;
+  /*
   float32 width=draw_savedWidth2RenderedWidth(breadth, blur_width);
   p_w->width=width;
   p_w->width_squared=p_w->width*p_w->width;
@@ -1975,6 +1976,22 @@ void draw_strokeWidthInit(draw_strokeWidth *p_w, const float32 breadth, const fl
   p_w->width_recip=1/(float32)width;
   p_w->blur_width=blur_width;
   p_w->half_blur_width=blur_width * 0.5; //refers to blur on one side of stroke only
+  */
+  p_w->desired_width=draw_savedWidth2RenderedWidth(breadth, blur_width);
+  float32 desired_mult;
+  if(p_w->desired_width<DRAW_STROKE_WIDTH_MIN_WIDTH) {
+    p_w->width=DRAW_STROKE_WIDTH_MIN_WIDTH;
+    desired_mult=p_w->width/p_w->desired_width;
+  } else {
+    p_w->width=p_w->desired_width;
+    desired_mult=1;
+  }
+  p_w->width_squared=p_w->width*p_w->width;
+  p_w->half_width=p_w->width*0.5;
+  p_w->width_recip=1/p_w->width;
+  p_w->blur_width=blur_width*desired_mult;
+  p_w->half_blur_width=p_w->blur_width * 0.5; //refers to blur on one side of stroke only
+  
   //LOG_INFO("breadth: %u width: %u half_blur_width: %u", breadth, p_w->width, p_w->half_blur_width);
   LOG_ASSERT(2*p_w->half_blur_width<=p_w->width, "width too small: %u. half blur: %u", p_w->width, p_w->half_blur_width);
   p_w->half_blur_width_recip=1/p_w->half_blur_width;
@@ -1988,14 +2005,19 @@ void draw_gradsDestroy(draw_grads *p_grad_agg) {
 }
 
 void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const float32 blur_width, const uint32 col, draw_canvas *p_canvas, const bool recalc_scaling) {
-  p_b->col=col;
-  p_b->rgb=col & DRAW_OPACITY_INVERSE_MASK;
-  p_b->opacity=col & DRAW_OPACITY_MASK;
-  p_b->opacity_frac=((float32)(col>>DRAW_OPACITY_SHIFT))/255;
-
+  /*
+    p_b->col=col;
+    p_b->rgb=col & DRAW_OPACITY_INVERSE_MASK;
+    p_b->opacity=col & DRAW_OPACITY_MASK;
+    p_b->opacity_frac=((float32)(col>>DRAW_OPACITY_SHIFT))/255;
+  */
+    
   uint32 scaling_idx;
   if(recalc_scaling) {
-    scaling_idx=draw_canvasSetAndGetScalingIdx(p_canvas, p_b->opacity>>DRAW_OPACITY_SHIFT, blur_width);
+    //scaling_idx=draw_canvasSetAndGetScalingIdx(p_canvas, p_b->opacity>>DRAW_OPACITY_SHIFT, blur_width);
+
+    //TODO might be possible to change scaling idx to something faster after adjusting opacity, when breadth is p_b->w.width is <1 (see below)
+    scaling_idx=draw_canvasSetAndGetScalingIdx(p_canvas, col>>DRAW_OPACITY_SHIFT, blur_width);
   } else {
     scaling_idx=0;
   }
@@ -2004,6 +2026,22 @@ void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const 
   //LOG_INFO("mag: %u breadth: %f blur: %f", p_b->mag_factor, breadth, blur_width);
   draw_strokeWidthInit(&p_b->w, breadth*p_b->scaling_factor, blur_width*p_b->scaling_factor);
   
+
+  uint32 opacity=col >> DRAW_OPACITY_SHIFT;
+  if(p_b->w.desired_width<p_b->w.width) {
+    uint32 adj_opacity=opacity*p_b->w.desired_width*p_b->w.width_recip;
+    LOG_INFO("adjusting opacity from %u to %u", opacity, adj_opacity);
+    opacity=adj_opacity;
+  } else {
+    LOG_ASSERT(p_b->w.desired_mult==1, "invalid value for desired_mult %f", p_b->w.desired_mult);
+  }
+  uint32 opacity_shifted=opacity<<DRAW_OPACITY_SHIFT;
+  p_b->assigned_col=col;
+  p_b->col=(col & DRAW_OPACITY_INVERSE_MASK) | opacity_shifted;
+  p_b->rgb=p_b->col & DRAW_OPACITY_INVERSE_MASK;
+  p_b->opacity=opacity_shifted;
+  p_b->opacity_frac=((float32)(opacity))/255;
+
   draw_gradConstsInit(&p_b->grad_consts, &p_b->w, p_b->opacity_frac);
 }
 
@@ -2397,7 +2435,7 @@ draw_vert draw_determineCtrlPt(const draw_vert *p_0, const draw_vert *p_fd_0, co
 
 uint32 draw_blotMaxIter(const draw_blot *p_blot) {
   //returns max_iter per quadrant at a cap
-  return LOG32(draw_savedWidth2RenderedWidth(p_blot->breadth, p_blot->blur_width))*5+3;
+  return LOG32(draw_savedWidth2RenderedWidth(p_blot->breadth, p_blot->blur_width)+1)*5+3;
 }
 
 void draw_blotInit(draw_blot *p_blot, draw_scanBrushLog *p_b, draw_globals *p_globals) {
@@ -3212,7 +3250,7 @@ void draw_strokeEndCap(draw_stroke *p_stroke, const draw_vert *p_end, draw_vert 
 void draw_strokeMoveTo(draw_stroke *p_stroke, const draw_vert *p_start, draw_globals *p_globals) {
   //see tiles/stroke.dot for state transition diagram
   //LOG_INFO("start pt: %f, %f", p_start->x, p_start->y);
-  LOG_ASSERT(p_stroke->state=DRAW_STROKE_RENDERED, "can only move on rendered state");
+  LOG_ASSERT(p_stroke->state==DRAW_STROKE_RENDERED, "can only move on rendered state");
   draw_canvasWipe(&p_globals->canvas, p_globals);
   draw_strokeContinue(p_stroke, p_start, p_globals);
 }

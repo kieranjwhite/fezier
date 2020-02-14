@@ -16,11 +16,12 @@
  */
 
 #ifndef TEST_H
+#define TEST_H
 
 #include <SDL.h>
 
 //define FULL_RENDER in order to render image. Don't define FULL_RENDER when profiling
-#define FULL_RENDER
+//#define FULL_RENDER
 
 #ifdef FULL_RENDER
 #define ITERATIONS 1
@@ -28,6 +29,14 @@
 #define ITERATIONS 50
 #endif
 
-#define TEST_H
+#define X_OFF (0)
+#define Y_OFF (0)
+
+#ifdef NDK
+#define MAG 1.0
+#else
+#define MAG 2.0
+#endif
+
 void render(SDL_Surface *p_screen, SDL_Surface *p_surface, draw_globals *p_globals);
 #endif
