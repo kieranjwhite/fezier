@@ -157,7 +157,7 @@ Compile and run as follows:
 
 <pre>
 cd c/rendering/test
-gcc -Wall -DHAVE_TYPEOF -DHAVE_BUILTIN_CHOOSE_EXPR -DHAVE_BUILTIN_TYPES_COMPATIBLE_P -gdwarf-2 -g3 -std=c99 -Wstrict-prototypes test_render.c main.c image_buf.c ../draw.c ../../rtu.c -lm `pkg-config --cflags --libs sdl`
+gcc -Wall -DHAVE_TYPEOF -DHAVE_BUILTIN_CHOOSE_EXPR -DHAVE_BUILTIN_TYPES_COMPATIBLE_P -gdwarf-2 -g3 -std=c99 -Wstrict-prototypes test_render.c main.c image_buf.c ../draw.c ../../rtu.c ../../minunit.c -lm `pkg-config --cflags --libs sdl`
 ./a.out
 </pre>
 
