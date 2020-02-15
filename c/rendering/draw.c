@@ -1610,7 +1610,9 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
       draw_swap(&verts[3], &verts[2]);
     }
 
-    if(p_log->highly_acute && draw_scanLogGetAngle(p_log, -2)>0.2 && draw_euclideanDistSquared(&p_last_grad->mid, &p_before_last_grad->mid)<=1) {
+    float32 ang=draw_scanLogGetAngle(p_log, -2);
+    if(p_log->highly_acute && ((ang>0.2 && draw_euclideanDistSquared(&p_last_grad->mid, &p_before_last_grad->mid)<=1) ||
+			       (ang==0 && (BSGN(p_before_last_grad->fd_signed.x)!=BSGN(p_last_grad->fd_signed.x) || BSGN(p_before_last_grad->fd_signed.y)!=BSGN(p_last_grad->fd_signed.y))))) {
       /* We filter out instance based on distance as where 2
        * successive draw_grads have a gap between their mid vertices,
        * as just rendering a blot at one mid (instead of a quad
@@ -1625,11 +1627,10 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
        * 
        */
       draw_blotContinue(&p_last_grad->mid, &p_last_grad->fd_signed, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
-      //LOG_INFO("tracking and blotting.");
+      LOG_INFO("tracking and blotting.");
       return;
     }
 
-    /*
     DO_INFO(float32 prev_ang=draw_scanLogGetAngle(p_log, -2));
     DO_INFO(float32 this_ang=draw_scanLogGetAngle(p_log, -1));
     LOG_INFO("%s last iter: %i before last: %f, %f last mid: %f, %f angs: %f, %f v1: %f, %f v2: %f, %f v3: %f, %f v4: %f, %f",
@@ -1643,7 +1644,7 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
 	     verts[2].x, verts[2].y,
 	     verts[3].x, verts[3].y
 	     );
-    */
+
     draw_onIterRowCb *p_row_renderer;
     if(p_last_grad->on_x) {
       p_row_renderer=draw_rowNewSegmentRangeOnX;
@@ -1651,9 +1652,8 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
       p_row_renderer=draw_rowNewSegmentRangeOnY;
     }
     draw_gradsSetIterRange(p_grad_agg, UINT_MAX, last_iter);
-    //if(last_iter>=38 && last_iter<=39) {
-      draw_scanLogFill(p_log, verts, 4, p_globals, p_row_renderer, &p_grad_agg->grads_if);
-      //}
+    draw_scanLogFill(p_log, verts, 4, p_globals, p_row_renderer, &p_grad_agg->grads_if);
+    //draw_vertDot(&p_last_grad->mid, 0xffffffff, p_globals);
     draw_gradMarkDirty(p_last_grad, draw_gradsTrans(p_grad_agg, UINT_MAX, last_iter), &p_globals->canvas);
   }
 }
@@ -1730,7 +1730,7 @@ void draw_initQuadGrad(
       //p_grad->segment_fd_signed.y=p_grad->segment_fd_signed.y/mag;
     } else {
       p_grad->fd_signed.x=0;
-      p_grad->fd_signed.y=1;
+      p_grad->fd_signed.y=-(((sint32)((p_0->y>=p_last->y)<<1))-1);
     }
 
     /* get the 2 unit vectors corresponding to the slope of the 2 segments (saved to segment_fd_signed)
@@ -2033,8 +2033,6 @@ void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const 
     uint32 adj_opacity=opacity*p_b->w.desired_width*p_b->w.width_recip;
     LOG_INFO("adjusting opacity from %u to %u", opacity, adj_opacity);
     opacity=adj_opacity;
-  } else {
-    LOG_ASSERT(p_b->w.desired_mult==1, "invalid value for desired_mult %f", p_b->w.desired_mult);
   }
   uint32 opacity_shifted=opacity<<DRAW_OPACITY_SHIFT;
   p_b->assigned_col=col;
@@ -2533,6 +2531,7 @@ void draw_blotContinue(const draw_vert *p_0, const draw_vert *p_fd, const float3
   draw_stroke stroke;
   draw_strokeInit(&stroke, &brush, p_globals);
   stroke.last_fd=draw_neg(p_fd);
+  //stroke.last_fd=*p_fd;
   //stroke.last_fd=*p_fd;
   stroke.state=DRAW_STROKE_IN_STROKE;
   stroke.last=*p_0;
@@ -3240,12 +3239,17 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_fi
 void draw_strokeStartCap(draw_stroke *p_stroke, const draw_vert *p_ctrl, const draw_vert *p_end, draw_globals *p_globals) {
   draw_vert fd_0=draw_strokeStartFD(p_stroke, &p_stroke->last, p_ctrl, p_end, &p_stroke->brush);
   draw_vert neg_fd=draw_neg(&fd_0);
+  LOG_INFO("start cap");
   draw_strokeCap(p_stroke, &p_stroke->last, &neg_fd, &fd_0, p_globals);
 }
 
 void draw_strokeEndCap(draw_stroke *p_stroke, const draw_vert *p_end, draw_vert *p_fd_1, draw_globals *p_globals) {
   draw_vert neg_fd=draw_neg(p_fd_1);
+  LOG_INFO("end cap. fd: %f, %f. neg_fd: %f, %f", p_fd_1->x, p_fd_1->y, neg_fd.x, neg_fd.y);
   draw_strokeCap(p_stroke, p_end, p_fd_1, &neg_fd, p_globals);
+  if(p_fd_1->x==0 || p_fd_1->y==0) {
+    draw_strokeCap(p_stroke, p_end, &neg_fd, p_fd_1, p_globals);
+  }
 }
 
 void draw_strokeMoveTo(draw_stroke *p_stroke, const draw_vert *p_start, draw_globals *p_globals) {
@@ -3275,6 +3279,7 @@ void draw_strokeQuadTo(draw_stroke *p_stroke, const draw_vert *p_ctrl, const dra
     LOG_ERROR("start cap start");
     }
     */
+    LOG_INFO("cap after move");
     draw_strokeStartCap(p_stroke, &scaled_ctrl, &scaled_end, p_globals);
     /*
     if(G_trace) {
@@ -3284,6 +3289,7 @@ void draw_strokeQuadTo(draw_stroke *p_stroke, const draw_vert *p_ctrl, const dra
     break;
   case DRAW_STROKE_IN_STROKE:
     //render join
+    LOG_INFO("cap between quads");
     fd_0=draw_strokeStartFD(p_stroke, &p_stroke->last, &scaled_ctrl, &scaled_end, &p_stroke->brush);
     draw_strokeCap(p_stroke, &p_stroke->last, &p_stroke->last_fd, &fd_0, p_globals);
     break;
@@ -3311,9 +3317,11 @@ void draw_strokeRender(draw_stroke *p_stroke, draw_globals *p_globals) {
   case DRAW_STROKE_MOVED:
     //start cap
     neg_fd=draw_neg(&p_stroke->last_fd);
+    LOG_INFO("cap after a wipe and move");
     draw_strokeCap(p_stroke, &p_stroke->last, &neg_fd, &p_stroke->last_fd, p_globals);
     //fall through
   case DRAW_STROKE_IN_STROKE:
+    LOG_INFO("cap at acute angle. mid: %f, %f", p_stroke->last.x, p_stroke->last.y);
     draw_strokeEndCap(p_stroke, &p_stroke->last, &p_stroke->last_fd, p_globals);
     break;
   }
