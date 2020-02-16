@@ -28,8 +28,7 @@
 #include "../ccan/typesafe_cb/typesafe_cb.h"
 #include "test/image_buf.h"
 
-uint32 largestOffset=0;
-uint32 largestOffsetCol=0;
+static const uint32 OPACITY_MULT=1<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT);
 
 uint8 g_xy_2_quad[][2]={{2,3},{1,0}};
 sint8 g_on_x_and_quad_2_semi_quad[][4]={{1,2,5,6},{0,3,4,7}};
@@ -701,11 +700,10 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   float32 pos=(x-cen_x)*seg.p_grad->default_pos_inc+p_b->w.half_width;  //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_b->w.width)
   //float32 pos=0;
   uint32 idx=draw_pos2Idx(p_b, pos); //0 if feathered in the first half, 1 if not feathered, 2 if feathered in the 2nd half
-  const uint32 opacity_mult=1<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT);
   uint32 opacity=(p_b->grad_consts.start_opacity[0]+
-		  p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]))) * opacity_mult;
+		  p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]))) * OPACITY_MULT;
   
-  uint32 inc_per_x=(p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc) * opacity_mult;
+  uint32 inc_per_x=(p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc) * OPACITY_MULT;
   //LOG_INFO("onX start x: %i, end_x: %i y: %u", x, seg.end_x,y);
   if(idx==0) {
     for(; x<seg.end_x; x++) {
@@ -769,7 +767,7 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   if(unshifted_opacity<=0) {
     return;
   }
-  opacity=unshifted_opacity * opacity_mult;
+  opacity=unshifted_opacity * OPACITY_MULT;
 
   sint32 remaining_in_row=seg.end_x-x;
   if((((uint64)inc_per_x)*remaining_in_row)>opacity) {
