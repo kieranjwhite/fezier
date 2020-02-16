@@ -1975,7 +1975,7 @@ sint32 draw_tailArr(const uint32 start_iter, const float32 step, draw_vert *p_pt
 }
 */
 void draw_strokeWidthInit(draw_strokeWidth *p_w, const float32 breadth, const float32 blur_width) {
-  p_w->breadth=breadth;
+  LOG_ASSERT(breadth>0, "breadth must be greater than 0: %f", breadth);
   /*
   float32 width=draw_savedWidth2RenderedWidth(breadth, blur_width);
   p_w->width=width;
@@ -1994,6 +1994,7 @@ void draw_strokeWidthInit(draw_strokeWidth *p_w, const float32 breadth, const fl
     p_w->width=p_w->desired_width;
     desired_mult=1;
   }
+  p_w->breadth=breadth*desired_mult;
   p_w->width_squared=p_w->width*p_w->width;
   p_w->half_width=p_w->width*0.5;
   p_w->width_recip=1/p_w->width;
@@ -2033,7 +2034,6 @@ void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const 
   p_b->mag_factor=p_canvas->std_mag_factors[scaling_idx];
   //LOG_INFO("mag: %u breadth: %f blur: %f", p_b->mag_factor, breadth, blur_width);
   draw_strokeWidthInit(&p_b->w, breadth*p_b->scaling_factor, blur_width*p_b->scaling_factor);
-  
 
   uint32 opacity=col >> DRAW_OPACITY_SHIFT;
   if(p_b->w.desired_width<p_b->w.width) {
@@ -2777,6 +2777,9 @@ void draw_gradReferenceSetIterRange(draw_gradReference *p_grad_ref, const uint32
 }
 
 void draw_brushInit(draw_brush *p_brush, const uint32 col, const float32 breadth, const float32 blur_width, draw_globals *p_globals) {
+  if(breadth<=0) {
+    LOG_ERROR("invalid breadth: %f", breadth);
+  }
   draw_brushInitInternal(p_brush, col, breadth, blur_width, p_globals, true);
 }
 
