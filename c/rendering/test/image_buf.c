@@ -29,7 +29,7 @@ void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag)
 #ifdef FULL_RENDER
   /* This function is unoptimised in that is makes no attempt to
    * confine updates to dirty regions of the p_data array. The
-   * function is only intended for testing. In an end-product
+   * function is only intended for testing. In an end-product a
    * platform-native function would usually be used to blit the pixel
    * array p_data to a surface or canvas.
    */

@@ -1626,7 +1626,14 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
        * perpendicular, but are also on a straight line. TODO
        * 
        */
-      draw_blotContinue(&p_last_grad->mid, &p_last_grad->fd_signed, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
+      
+      if(((p_last_grad->fd_signed.x>=0)!=(p_before_last_grad->fd_signed.x>=0) || ((p_last_grad->fd_signed.y>=0)!=(p_before_last_grad->fd_signed.y>=0)))  &&
+	 p_last_grad->fd_signed.x*p_before_last_grad->fd_signed.y==p_last_grad->fd_signed.y*p_before_last_grad->fd_signed.x) {
+	draw_vert inverse_fd=draw_neg(&p_last_grad->fd_signed);
+	draw_blotContinue(&p_last_grad->mid, &inverse_fd, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
+      } else {
+	draw_blotContinue(&p_last_grad->mid, &p_last_grad->fd_signed, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
+      }
       LOG_INFO("tracking and blotting.");
       return;
     }
@@ -3247,9 +3254,6 @@ void draw_strokeEndCap(draw_stroke *p_stroke, const draw_vert *p_end, draw_vert 
   draw_vert neg_fd=draw_neg(p_fd_1);
   LOG_INFO("end cap. fd: %f, %f. neg_fd: %f, %f", p_fd_1->x, p_fd_1->y, neg_fd.x, neg_fd.y);
   draw_strokeCap(p_stroke, p_end, p_fd_1, &neg_fd, p_globals);
-  if(p_fd_1->x==0 || p_fd_1->y==0) {
-    draw_strokeCap(p_stroke, p_end, &neg_fd, p_fd_1, p_globals);
-  }
 }
 
 void draw_strokeMoveTo(draw_stroke *p_stroke, const draw_vert *p_start, draw_globals *p_globals) {
