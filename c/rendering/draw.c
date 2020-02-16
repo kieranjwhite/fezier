@@ -701,10 +701,11 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   float32 pos=(x-cen_x)*seg.p_grad->default_pos_inc+p_b->w.half_width;  //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_b->w.width)
   //float32 pos=0;
   uint32 idx=draw_pos2Idx(p_b, pos); //0 if feathered in the first half, 1 if not feathered, 2 if feathered in the 2nd half
-  sint32 opacity=p_b->grad_consts.start_opacity[0]+
-				    p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]));
+  const uint32 opacity_mult=1<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT);
+  uint32 opacity=(p_b->grad_consts.start_opacity[0]+
+		  p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]))) * opacity_mult;
   
-  float32 inc_per_x=p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc;
+  uint32 inc_per_x=(p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc) * opacity_mult;
   //LOG_INFO("onX start x: %i, end_x: %i y: %u", x, seg.end_x,y);
   if(idx==0) {
     for(; x<seg.end_x; x++) {
@@ -715,7 +716,7 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
       //  break;
       //}
     
-      draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
+      draw_dot(x, y, p_b->rgb | (((uint32)((pos>0)*opacity)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
       pos+=seg.p_grad->default_pos_inc;
 
       opacity+=inc_per_x;
@@ -730,8 +731,8 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
     }
   }
   
-  idx+=pos>=p_b->grad_consts.threshes[1];
   if(idx==1) {
+    idx+=pos>=p_b->grad_consts.threshes[1];
     for(; x<seg.end_x; x++) {
       DO_INFO(p_globals->draw_pixels++);
       //bounds are sorted by x
@@ -762,15 +763,36 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
       }
     }
   }
-  opacity=p_b->grad_consts.start_opacity[2]+p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2]));
-  for(; x<seg.end_x; x++) {
-    LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
-    DO_INFO(p_globals->draw_pixels++);
-    //bounds are sorted by x
-    
-    draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
-    DO_ASSERT(pos+=seg.p_grad->default_pos_inc);
-    opacity-=inc_per_x;
+
+  sint32 unshifted_opacity=(p_b->grad_consts.start_opacity[2]+
+			    p_b->grad_consts.p_incs_per_pos[2]*(pos-(p_b->grad_consts.start_threshes[2])));
+  if(unshifted_opacity<=0) {
+    return;
+  }
+  opacity=unshifted_opacity * opacity_mult;
+
+  sint32 remaining_in_row=seg.end_x-x;
+  if((((uint64)inc_per_x)*remaining_in_row)>opacity) {
+    for(; opacity>inc_per_x; x++) {
+      LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
+      DO_INFO(p_globals->draw_pixels++);
+      //bounds are sorted by x
+      
+      draw_dot(x, y, p_b->rgb | (opacity & DRAW_OPACITY_MASK), p_globals);
+      DO_ASSERT(pos+=seg.p_grad->default_pos_inc);
+      opacity-=inc_per_x;
+    }
+    draw_dot(x, y, p_b->rgb | (opacity & DRAW_OPACITY_MASK), p_globals);
+  } else {
+    for(; x<seg.end_x; x++) {
+      LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
+      DO_INFO(p_globals->draw_pixels++);
+      //bounds are sorted by x
+      
+      draw_dot(x, y, p_b->rgb | (opacity & DRAW_OPACITY_MASK), p_globals);
+      DO_ASSERT(pos+=seg.p_grad->default_pos_inc);
+      opacity-=inc_per_x;
+    }
   }
 }
 
@@ -1474,6 +1496,8 @@ void draw_triNow(
 				       ) {
   uint32 q=(quad_iter & DRAW_PROXIMITY_QUADRANT_MASK) >> DRAW_PROXIMITY_ITER_BITS;
   uint32 iter=(quad_iter & DRAW_PROXIMITY_ITER_MASK);
+  LOG_INFO("triNow. q: %u iter: %u", q, iter);
+
   
   draw_grad *p_iter_2_grad=draw_gradReferenceGradPtr(p_grad_ref, q);
   draw_vert *p_center=&p_grad_ref->center;
@@ -1492,8 +1516,9 @@ void draw_triNow(
   }
   
   //draw_scanFillLogInit(&p_log->f, verts, p_globals);
-  draw_scanLogFill(p_log, verts, 3, p_globals, p_row_renderer, &p_grad_ref->grads_if);
-    
+  //if(q==2 && iter==25) {
+    draw_scanLogFill(p_log, verts, 3, p_globals, p_row_renderer, &p_grad_ref->grads_if);
+    //}
   p_grad_ref->last_iter=iter;
   draw_gradReferenceSetLastPt(p_grad_ref, p_0);
 }
@@ -1659,8 +1684,10 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
       p_row_renderer=draw_rowNewSegmentRangeOnY;
     }
     draw_gradsSetIterRange(p_grad_agg, UINT_MAX, last_iter);
+    //if(last_iter==2) {
     draw_scanLogFill(p_log, verts, 4, p_globals, p_row_renderer, &p_grad_agg->grads_if);
-    //draw_vertDot(&p_last_grad->mid, 0xffffffff, p_globals);
+      //}
+     //draw_vertDot(&p_last_grad->mid, 0xffffffff, p_globals);
     draw_gradMarkDirty(p_last_grad, draw_gradsTrans(p_grad_agg, UINT_MAX, last_iter), &p_globals->canvas);
   }
 }
@@ -3223,6 +3250,7 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_fi
     incoming_fd.x=draw_plotBezInitFD_1(ctrl.x, end.x);
     incoming_fd.y=draw_plotBezInitFD_1(ctrl.y, end.y);
   }
+
   uint32 q=cur_quadrant & 3;
   ctrl=draw_determineCtrlPt(&start, &incoming_fd, &terminal_end, p_end_fd);
   
@@ -3241,6 +3269,7 @@ void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_fi
   //render bezier here from start -> ctrl -> end
   draw_plotBez(step, p_pts, NULL, DRAW_GRADS_IF_ON_ITER_CB_ARG(draw_triFillCb, &ref), &log, &ref.grads_if, p_globals);
   draw_lastTri(&log, &ref, &p_pts[2], width, p_globals);
+  
   //LOG_INFO("cap. end: %f, %f", terminal_end.x, terminal_end.y);
   draw_gradReferenceDestroy(&ref);
   draw_scanLogDestroy(&log);
