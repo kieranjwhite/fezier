@@ -165,7 +165,7 @@ inline void rtu_memSet(void *p, const uint32 v, const uint32 num_words32) {
   
   uint32 *p_end=((uint32 *)p)+num_words32;
   uint32 *p_cur;
-  for(p_cur=p; p_cur<p_end; p_cur++) {
+  for(p_cur=(uint32 *)p; p_cur<p_end; p_cur++) {
     *p_cur=v;
   }
 }

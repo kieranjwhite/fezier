@@ -262,7 +262,7 @@ void Java_com_hourglassapps_tiles_render_CRenderEngine_renderStrokeDestroy(JNIEn
 	draw_globals *p_globals=(draw_globals *)globals_ptr;
 	//draw_globalsLoadR(p_globals);
 
-	draw_stroke *p_stroke=(draw_stroke *)stroke_ptr;
+    draw_stroke *p_stroke=(draw_stroke *)stroke_ptr;
 	if(p_stroke) {
 		rtu_memFree(p_stroke);
 	} else {

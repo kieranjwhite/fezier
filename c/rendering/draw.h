@@ -839,7 +839,30 @@ inline void draw_onOffset(uint32 pOffset, uint32 col, const draw_globals *p_glob
   draw_atOffset(pOffset, MAX(col, draw_get(pOffset, p_globals)), p_globals);
 }
 
+/*
+extern uint32 last_x;
+extern uint32 last_y;
+extern uint32 last_col;
+*/
 inline void draw_dot(uint32 x, uint32 y, uint32 col, const draw_globals *p_globals) {
+  /*
+  sint32 signed_col=(sint32)(col>>24);
+    sint32 signed_last_col=(sint32)(last_col>>24);
+    sint32 col_delta=ABSF(signed_col-signed_last_col);
+  if(x==last_x+1 && y==last_y && col_delta>0xEF) {
+      __asm__("nop");
+      __asm__("nop");
+    REPORT("found hole");
+  }
+  //if((x==324 || x==325) && y==545) {
+  //      __asm__("nop");
+  //      __asm__("nop");
+  //      REPORT("dot: loc: %u, %u opacity: %u", x, y, signed_col);
+  //}
+  last_x=x;
+  last_y=y;
+  last_col=col;
+  */
   uint32 offset=(y*draw_canvasRenderedWidth(&p_globals->canvas))+x;
   LOG_ASSERT(offset<draw_canvasRenderedWidth(&p_globals->canvas)*draw_canvasHeight(&p_globals->canvas), "offset %u too large (limit: %u)", offset, draw_canvasRenderedWidth(&p_globals->canvas)*draw_canvasHeight(&p_globals->canvas));
   draw_onOffset(offset, col, p_globals);

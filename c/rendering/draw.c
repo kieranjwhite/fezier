@@ -29,7 +29,11 @@
 #include "test/image_buf.h"
 
 static const uint32 OPACITY_MULT=1<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT);
-
+/*
+uint32 last_x=0;
+uint32 last_y=0;
+uint32 last_col=0;
+*/
 uint8 g_xy_2_quad[][2]={{2,3},{1,0}};
 sint8 g_on_x_and_quad_2_semi_quad[][4]={{1,2,5,6},{0,3,4,7}};
 
@@ -673,11 +677,28 @@ bool draw_horizSegmentInit(draw_horizSegment *p_seg, const draw_scanBrushLog *p_
 //bool G_track=false;
 //uint32 G_not_rendered=0;
 void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first_x, const sint32 last_x, const uint32 y, draw_globals *p_globals, draw_gradsIf *p_grads_if) {
+  /*
+  bool extra_reporting=false;
+  if((first_x<=324 && last_x>=325) && y==545) {
+    extra_reporting=true;
+    //if((p_grads_if->p_iter_range_cb)(p_grads_if).iter==10) {
+    //  first_x=325;
+    //}
+    //if((p_grads_if->p_iter_range_cb)(p_grads_if).iter==11) {
+    //  first_x=324;
+    //}
+  }
+  */
   draw_horizSegment seg;
   if(!draw_horizSegmentInit(&seg, p_b, first_x, last_x, y, p_globals, p_grads_if)) {
     //LOG_INFO("tracking and aborting new segment range on x.");
     return;
   }
+  /*
+  if(extra_reporting) {
+    REPORT("iter: %u, first_x: %u, last_x: %u", seg.iter, first_x, last_x);
+  }
+  */
   LOG_ASSERT(seg.p_grad->on_x, "invalid grad: %u", seg.iter);
   sint32 x=seg.start_x;
   float32 bound_delta=(y-seg.p_anchor->y)*seg.p_grad->slope_recip;
@@ -700,10 +721,25 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
   float32 pos=(x-cen_x)*seg.p_grad->default_pos_inc+p_b->w.half_width;  //since p_anchor is the mid point between draw_grad bounds (leading to a -ve pos for half of the pixels in this draw_grad) we need to ensure pos has the correct range (i.e. between 0 and p_b->w.width)
   //float32 pos=0;
   uint32 idx=draw_pos2Idx(p_b, pos); //0 if feathered in the first half, 1 if not feathered, 2 if feathered in the 2nd half
-  uint32 opacity=(p_b->grad_consts.start_opacity[0]+
-		  p_b->grad_consts.p_incs_per_pos[0]*(pos-(p_b->grad_consts.start_threshes[0]))) * OPACITY_MULT;
-  
+  float32 distance_past_start_pt=(pos-(p_b->grad_consts.start_threshes[0]));
+  float32 opacities_past_start_pt=(p_b->grad_consts.start_opacity[0]+
+                                   p_b->grad_consts.p_incs_per_pos[0]*distance_past_start_pt);
+  float32 opacity_shifted=opacities_past_start_pt * OPACITY_MULT;
+  uint32 opacity;
+
+  if(pos<0)
+  {
+    float32 positive_shifted=-opacity_shifted;
+    LOG_ASSERT(positive_shifted>=0, "invalid positive shifted. pos: %f, -ve opacity: %f", pos, positive_shifted);
+    uint32 positive_opacity_shifted=positive_shifted;
+    opacity=-positive_opacity_shifted;
+  } else {
+    opacity=opacity_shifted;
+    LOG_ASSERT(opacity_shifted>=0, "invalid opacity_shifted. pos: %f shifted: %f", pos, opacity_shifted);
+  }
+
   uint32 inc_per_x=(p_b->grad_consts.p_incs_per_pos[0]*seg.p_grad->default_pos_inc) * OPACITY_MULT;
+  //uint32 fst_thresh=((uint32)p_b->grad_consts.start_opacity[1]*OPACITY_MULT)-inc_per_x;
   //LOG_INFO("onX start x: %i, end_x: %i y: %u", x, seg.end_x,y);
   if(idx==0) {
     for(; x<seg.end_x; x++) {
@@ -713,23 +749,54 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
       //if(idx!=0) {
       //  break;
       //}
-    
+
+      //bool exit_next=opacity>=fst_thresh;
+      /*
+      if((x==324 || x==325) && y==545) {
+        REPORT("on x 0: iter: %u-%u mid: %f,%f default_pos_inc: %f, slope_recip: %f, cen_x: %f inc_per_x: %f loc: %u,%u", seg.q, seg.iter, seg.p_anchor->x, seg.p_anchor->y, seg.p_grad->default_pos_inc, seg.p_grad->slope_recip, cen_x, (((float32)inc_per_x)/(float32)OPACITY_MULT), x, y);
+      }
+      if(extra_reporting) {
+        REPORT("x: %i pos: %f opacity: %u shifted opacity: %u", x, pos, opacity, (uint32)(opacity>>(8+DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)));
+      }
+      */
       draw_dot(x, y, p_b->rgb | (((uint32)((pos>0)*opacity)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
+      /*
+      if(x>323 && y==545) {
+        __asm__("nop");
+        __asm__("nop");
+        REPORT("found coord");
+
+      }
+       */
       pos+=seg.p_grad->default_pos_inc;
 
       opacity+=inc_per_x;
-      if(pos>p_b->grad_consts.threshes[0]) {
-	idx++;
-	if(idx!=0) {
-	  x++;
-	  break;
-	}
+      if(pos>=p_b->grad_consts.threshes[0]) {
+        //if(pos<p_b->grad_consts.threshes[0] && p_b->w.width>15) {
+        //  __asm__("nop");
+        //  __asm__("nop");
+        //  __asm__("nop");
+
+        //}
+        //opacity=p_b->grad_consts.start_threshes[1];
+	    idx++;
+	    x++;
+	    break;
       }
       //idx+=pos>p_b->grad_consts.threshes[0];
     }
   }
   
   if(idx==1) {
+    LOG_ASSERT(pos>=p_b->grad_consts.threshes[0], "invalid pos. pos: %f, thresh: %f", pos, p_b->grad_consts.threshes[0]);
+    /*
+    if(pos<p_b->grad_consts.threshes[0] && p_b->w.width>15) {
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+
+    }
+     */
     idx+=pos>=p_b->grad_consts.threshes[1];
     for(; x<seg.end_x; x++) {
       DO_INFO(p_globals->draw_pixels++);
@@ -775,7 +842,10 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
       LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
       DO_INFO(p_globals->draw_pixels++);
       //bounds are sorted by x
-      
+      /*
+      if((x==324 || x==325) && y==545) {
+        REPORT("on x 2a: loc: %u, %u", x, y);
+      } */
       draw_dot(x, y, p_b->rgb | (opacity & DRAW_OPACITY_MASK), p_globals);
       DO_ASSERT(pos+=seg.p_grad->default_pos_inc);
       opacity-=inc_per_x;
@@ -786,7 +856,10 @@ void draw_rowNewSegmentRangeOnX(const draw_scanBrushLog *p_b, const sint32 first
       LOG_ASSERT(draw_pos2Idx(p_b, pos)==2, "idx should be 2");
       DO_INFO(p_globals->draw_pixels++);
       //bounds are sorted by x
-      
+      /*
+      if((x==324 || x==325) && y==545) {
+        REPORT("on x 2b: loc: %u, %u", x, y);
+      } */
       draw_dot(x, y, p_b->rgb | (opacity & DRAW_OPACITY_MASK), p_globals);
       DO_ASSERT(pos+=seg.p_grad->default_pos_inc);
       opacity-=inc_per_x;
@@ -830,7 +903,13 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
       //if(idx!=0) {
       //  break;
       //}
-
+      /*
+      if((x==324 || x==325) && y==545) {
+        REPORT("on y 0: iter: %u-%u mid: %f,%f default_pos_inc: %f, slope_recip: %f, cen_y: %f, inc_per_x: %f loc: %u,%u", seg.q, seg.iter, seg.p_anchor->x, seg.p_anchor->y, seg.p_grad->default_pos_inc, seg.p_grad->slope_recip, cen_y, inc_per_x, x, y);
+        __asm__("nop");
+        __asm__("nop");
+      }
+      */
       draw_dot(x, y, p_b->rgb | ((((uint32)((opacity>0)*opacity))<<(DRAW_OPACITY_SHIFT-DRAW_OPACITY_SCALED_SHIFT)) & DRAW_OPACITY_MASK), p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
       pos-=pos_dec;
       opacity+=inc_per_x;
@@ -877,6 +956,11 @@ void draw_rowNewSegmentRangeOnY(const draw_scanBrushLog *p_b, const sint32 first
     //if(y==541 && (seg.iter==40 || seg.iter==41)) {
     //  LOG_INFO("x: %f y: %u col: 0x%x", x, y, col);
     //}
+    /*
+    if((x==324 || x==325) && y==545) {
+      REPORT("on y 2: loc: %u, %u", x, y);
+    }
+    */
     draw_dot(x, y, col, p_globals); //we deal with negative opacities here so that incrementally updating opacity accounts for negative values correctly
     DO_ASSERT(pos-=pos_dec);
     opacity-=inc_per_x;
@@ -1494,8 +1578,6 @@ void draw_triNow(
 				       ) {
   uint32 q=(quad_iter & DRAW_PROXIMITY_QUADRANT_MASK) >> DRAW_PROXIMITY_ITER_BITS;
   uint32 iter=(quad_iter & DRAW_PROXIMITY_ITER_MASK);
-  LOG_INFO("triNow. q: %u iter: %u", q, iter);
-
   
   draw_grad *p_iter_2_grad=draw_gradReferenceGradPtr(p_grad_ref, q);
   draw_vert *p_center=&p_grad_ref->center;
@@ -1663,6 +1745,7 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
 
     DO_INFO(float32 prev_ang=draw_scanLogGetAngle(p_log, -2));
     DO_INFO(float32 this_ang=draw_scanLogGetAngle(p_log, -1));
+    
     LOG_INFO("%s last iter: %i before last: %f, %f last mid: %f, %f angs: %f, %f v1: %f, %f v2: %f, %f v3: %f, %f v4: %f, %f",
 	     this_ang>PI_OVER_2000?"":"straight", last_iter, 
 	     p_before_last_grad->mid.x, p_before_last_grad->mid.y,
@@ -1709,9 +1792,9 @@ void draw_initBlotGrad(
 		       const uint32 iter,
 		       draw_globals *p_globals
 		       ) {
-  draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
-  draw_quadIdx qi=draw_vector2QuadIdx(p_fd);
-  p_grad->quadrant=g_xy_2_quad[qi.x_idx][qi.y_idx];
+  draw_grad *p_grad = &p_grad_agg->p_iter_2_grad[iter];
+  draw_quadIdx qi = draw_vector2QuadIdx(p_fd);
+  p_grad->quadrant = g_xy_2_quad[qi.x_idx][qi.y_idx];
   draw_recordFD(p_log, p_grad_agg, p_0, p_fd, iter, p_globals);
   /*
   if(p_last!=NULL) {
@@ -1721,9 +1804,19 @@ void draw_initBlotGrad(
     p_grad->has_last_mid=false;
   }
   */
-  p_grad->mid=*p_0;
-  p_grad->quadrant=0;
+  p_grad->mid = *p_0;
+  p_grad->quadrant = 0;
   draw_gradInitFill(p_grad, &p_log->p_b->w, p_globals);
+  if (iter >= 8 && iter <= 13) {
+   if (p_grad->fd_signed.x != 0) {
+      LOG_INFO("blot grad. iter: %u m: %f default_pos_inc: %f, slope_recip: %f", iter,
+               p_grad->fd_signed.y / p_grad->fd_signed.x, p_grad->default_pos_inc,
+               p_grad->slope_recip);
+    } else {
+      LOG_INFO("blot grad. iter: %u m: infinity, default_pos_inc: %f, slope_recip: %f", iter,
+               p_grad->default_pos_inc, p_grad->slope_recip);
+    }
+  }
 }
 
 void draw_initQuadGrad(
@@ -3330,9 +3423,6 @@ void draw_strokeQuadTo(draw_stroke *p_stroke, const draw_vert *p_ctrl, const dra
   }
 
   p_stroke->last_fd=draw_thickQuad(&p_stroke->last, &scaled_ctrl, &scaled_end, &p_stroke->brush.b, p_globals);
-  //p_stroke->last_fd=draw_strokeEndFD(p_stroke, &p_stroke->last, &scaled_ctrl, &scaled_end, &p_stroke->brush);
-  //p_stroke->last_fd.x=5;
-  //p_stroke->last_fd.y=5;
 
   p_stroke->last=scaled_end;
   p_stroke->state=DRAW_STROKE_IN_STROKE;
