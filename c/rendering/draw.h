@@ -625,11 +625,13 @@ inline draw_vert draw_bezierQuad(float32 t, const draw_vert *p_ws[], const draw_
   return result;
 }
 
+//rotates p_tan 90 degrees anticlockwise (assuming +ve y coord are above the x axis)
 inline draw_vert draw_norm(const draw_vert *p_tan) {
   draw_vert norm={ .x=-p_tan->y, .y=p_tan->x };
   return norm;
 }
 
+//rotates p_tan 90 degrees anticlockwise (assuming +ve y coord are above the x axis)
 inline draw_vert64 draw_norm64(const draw_vert64 *p_tan) {
   draw_vert64 norm={ .x=-p_tan->y, .y=p_tan->x };
   return norm;
@@ -771,9 +773,13 @@ inline draw_rect draw_calcTerminalBoxFromTan(const draw_vert *p_0, const draw_ve
 }
 
 inline draw_rect64 draw_calcTerminalBox(const draw_vert *p_0, const draw_vert *p_fd, const float64 half_width) {
+  LOG_INFO("draw_calcTerminalBox. p_0: %f,%f p_fd: %f,%f, half_width: %f", p_0->x, p_0->y, p_fd->x, p_fd->y, half_width);
   draw_vert64 tan=draw_fd2Tan64(p_fd, half_width); //normalises *p_fd's magnitude
+  LOG_INFO("draw_calcTerminalBox. tan: %f,%f", tan.x, tan.y);
   draw_vert64 norm=draw_norm64(&tan); //gets the normal (ie perpendicular)
-  return draw_boundingBox64(p_0, &norm);
+  draw_rect64 result= draw_boundingBox64(p_0, &norm);
+  LOG_INFO("draw_calcTerminalBox. result: lt %f,%f rb %f,%f", result.lt.x, result.lt.y, result.rb.x, result.rb.y);
+  return result;
 }
 
 inline draw_vert draw_vertRecip(const draw_vert *p_0) {
@@ -1364,7 +1370,7 @@ static inline sint32 draw_sideOfLine(draw_vert *p_v1, draw_vert *p_v2, draw_vert
 }
 */
 //returns +1 when *p_pt is on or above the line y=mx+c, -1 otherwise
-static inline sint32 draw_yDistAboveLine(float32 m, float32 c, const draw_vert *p_pt) {
+static inline float32 draw_yDistAboveLine(float32 m, float32 c, const draw_vert *p_pt) {
   return -m * p_pt->x + p_pt->y -c;
 }
 
@@ -1475,7 +1481,7 @@ sint32 draw_gradReferenceVert(const draw_gradReference *p_grad_ref);
 draw_grad *draw_gradsGradPtr(draw_grads *p_grad_agg, const uint32 q);
 void draw_vertNullableInit(draw_vertNullable *p_vertInstPtr, const draw_vert *p_0);
 void draw_blotContinue(const draw_vert *p_0, const draw_vert *p_fd, const float32 breadth, const float32 blur_width, const uint32 col, draw_globals *p_globals);
-void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, draw_vert *p_first_fd, draw_vert *p_last_fd, draw_globals *p_globals);
-
+void draw_strokeCap(draw_stroke *p_stroke, const draw_vert *p_0, const draw_vert *p_first_fd, const draw_vert *p_last_fd, draw_globals *p_globals);
+sint32 draw_vertNonReflexAng(const draw_vert *p_not_normalised_fst, const draw_vert *p_not_normalised_snd);
 #endif
 

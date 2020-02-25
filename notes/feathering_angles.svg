@@ -490,9 +490,9 @@
      borderopacity="1.0"
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
-     inkscape:zoom="3.5134115"
-     inkscape:cx="-12.392813"
-     inkscape:cy="704.34448"
+     inkscape:zoom="4.9687142"
+     inkscape:cx="128.89182"
+     inkscape:cy="-181.19649"
      inkscape:document-units="px"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -1484,7 +1484,7 @@
          id="tspan6103"
          x="-259.85748"
          y="1157.9122"
-         style="font-size:4px;line-height:1.25">*p_last_fd</tspan></text>
+         style="font-size:4px;line-height:1.25">neg_last_fd</tspan></text>
     <text
        transform="rotate(21.015252)"
        id="text6105"
@@ -1497,7 +1497,7 @@
          x="451.82178"
          id="tspan6107"
          sodipodi:role="line"
-         style="font-size:4px;line-height:1.25">neg_next_fd</tspan></text>
+         style="font-size:4px;line-height:1.25">*p_first_fd</tspan></text>
     <text
        id="text6109"
        y="1182.547"
