@@ -96,7 +96,7 @@ extern inline uint32 draw_canvasRenderedHeight(const draw_canvas *p_canvas);
 extern inline uint32 draw_canvasWidth(const draw_canvas *p_canvas);
 extern inline uint32 draw_canvasHeight(const draw_canvas *p_canvas);
 extern inline void draw_onOffset(uint32 pOffset, uint32 col, const draw_globals *p_globals);
-extern inline void draw_vertDot(const draw_vert *p_0, uint32 col, const draw_globals *p_globals);
+extern inline void draw_vertDot(const draw_vert *p_0, uint32 col, draw_globals *p_globals);
 extern inline void draw_dot(uint32 x, uint32 y, uint32 col, const draw_globals *p_globals);
 extern inline draw_vert draw_copy(const draw_vert *p_0);
 extern inline void draw_swap(draw_vert *p_v0, draw_vert *p_v1);
@@ -1652,18 +1652,18 @@ bool draw_fillIter(draw_grad *p_grad, draw_gradTranslated *p_grad_trans, const d
 uint32 debug_cols[]={0xff000000, 0xffbf0000, 0xff00bf00, 0x000000bf, 0xff3f0000, 0xff003f00, 0xff00003f, 0xffffffff};
 
 //changes p_verts[2], p_verts[3] and p_last_grad->half_delta
-void draw_updateWithVertIntersection(draw_grad *p_last_grad, draw_grad *p_grad, draw_vert *p_verts, const float32 last_grad_m, const float32 last_grad_c) {
+void draw_updateWithVertIntersection(draw_grad *p_last_grad, draw_grad *p_grad, draw_vert *p_verts, const float32 last_grad_m) {
   float32 grad_m=p_grad->fd_signed.y/p_grad->fd_signed.x;
   if(grad_m!=last_grad_m) {
-    //float32 grad_c=rtu_lineC(p_grad->mid.x, p_grad->mid.y, grad_m);
+    float32 grad_c=rtu_lineC(p_grad->mid.x, p_grad->mid.y, grad_m);
     
     draw_vert grad_verts[2]={
 			     draw_add(&p_grad->mid, &p_grad->half_delta),
 			     draw_diff(&p_grad->mid, &p_grad->half_delta),
     };
-    
-    sint32 sideOfV3=draw_sideOfLine(last_grad_m, last_grad_c, &p_verts[3]);
-    sint32 sideOfGV0=draw_sideOfLine(last_grad_m, last_grad_c, &grad_verts[0]);
+
+    sint32 sideOfV3=draw_sideOfLine(grad_m, grad_c, &p_verts[3]);
+    sint32 sideOfGV0=draw_sideOfLine(grad_m, grad_c, &grad_verts[0]);
     if(sideOfV3!=sideOfGV0) {
       draw_swap(&p_verts[3], &p_verts[2]);
     }
@@ -1671,6 +1671,51 @@ void draw_updateWithVertIntersection(draw_grad *p_last_grad, draw_grad *p_grad, 
     p_last_grad->half_delta=draw_diff(&p_verts[3], &p_last_grad->mid);
     p_verts[2]=draw_diff(&p_last_grad->mid, &p_last_grad->half_delta);
   }
+}
+/*
+draw_vert draw_strokeDirectionalVec(const draw_vert *p_prev_mid, const draw_vert *p_0, const draw_vert *p_1) {
+  draw_vert last_delta_norm=draw_diff(p_0, p_1);
+  draw_vert last_delta_inverse=draw_norm(&last_delta_norm);
+  float32 last_norm_m=last_delta_norm.y/last_delta_norm.x;
+  if(isfinite(last_norm_m)) {
+    float32 last_norm_c=rtu_lineC(p_0->x, p_0->y, last_norm_m);
+    sint32 side_of_norm=draw_sideOfLine(last_norm_m, last_norm_c, p_prev_mid);
+    draw_vert last_delta_inverse_pt=draw_add(p_0, &last_delta_inverse);
+    sint32 proposed_next_side_of_norm=draw_sideOfLine(last_norm_m, last_norm_c, &last_delta_inverse_pt);
+    if(side_of_norm==proposed_next_side_of_norm) {
+      last_delta_inverse=draw_neg(&last_delta_inverse);	  
+    }
+  } else {
+    //perfectly vertical
+    if((p_prev_mid->x<last_delta_norm.x) == (last_delta_inverse.x<0)) {
+      last_delta_inverse=draw_neg(&last_delta_inverse);
+    }
+  }
+
+  return last_delta_inverse;
+}
+*/
+draw_vert draw_strokeDirectionalVec(const draw_grad * const p_grad, const draw_vert *p_prev_mid) {
+  //draw_vert last_delta_norm=draw_diff(p_0, p_1);
+  //draw_vert last_delta_inverse=draw_norm(&last_delta_norm);
+  draw_vert norm=draw_norm(&p_grad->fd_signed);
+  float32 norm_m=norm.y/norm.x;
+  if(isfinite(norm_m)) {
+    float32 norm_c=rtu_lineC(p_grad->mid.x, p_grad->mid.y, norm_m);
+    sint32 side_of_norm=draw_sideOfLine(norm_m, norm_c, p_prev_mid);
+    draw_vert last_delta_inverse_pt=draw_add(&p_grad->mid, &p_grad->fd_signed);
+    sint32 proposed_next_side_of_norm=draw_sideOfLine(norm_m, norm_c, &last_delta_inverse_pt);
+    if(side_of_norm==proposed_next_side_of_norm) {
+      return draw_neg(&p_grad->fd_signed);	  
+    }
+  } else {
+    //perfectly vertical
+    if((p_prev_mid->x<p_grad->mid.x) == (p_grad->fd_signed.x<0)) {
+      return draw_neg(&p_grad->fd_signed);
+    }
+  }
+
+  return p_grad->fd_signed;
 }
 
 void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, draw_globals *p_globals) {
@@ -1681,6 +1726,7 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
   if(iter>1) {
     uint32 last_iter=iter-1, before_last_iter=iter-2;
 
+    draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
     draw_grad *p_last_grad=&p_grad_agg->p_iter_2_grad[last_iter];
     draw_grad *p_before_last_grad=&p_grad_agg->p_iter_2_grad[before_last_iter];
 
@@ -1702,13 +1748,19 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
     LOG_ASSERT(zerothYDist>=thirdYDist, "0th vertex is closer to last_grad normal than the 3d");
     LOG_ASSERT(firstYDist>=secondYDist, "1st vertex is closer to last_grad normal than the 2nd");
 
+    if(last_iter==111) {
+      __asm__("nop");
+      __asm__("nop");
+      __asm__("nop");
+    }
+    
     if(iter<=p_grad_agg->max_iter) {
       draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
       draw_scanLogAddAngle(p_log, p_grad, p_globals);
       if(draw_scanLogGetAngle(p_log, -1)>PI_OVER_2000) {
 	float32 last_grad_m=p_last_grad->fd_signed.y/p_last_grad->fd_signed.x;
-	float32 last_grad_c=rtu_lineC(p_last_grad->mid.x, p_last_grad->mid.y, last_grad_m);
-	draw_updateWithVertIntersection(p_last_grad, p_grad, verts, last_grad_m, last_grad_c);
+	//float32 last_grad_c=rtu_lineC(p_last_grad->mid.x, p_last_grad->mid.y, last_grad_m);
+	draw_updateWithVertIntersection(p_last_grad, p_grad, verts, last_grad_m);
       }
     }
 
@@ -1718,10 +1770,39 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
        ) {
       draw_swap(&verts[3], &verts[2]);
     }
+    /*
+    if(
+       ((verts[0].x<verts[3].x)!=(verts[1].x<verts[2].x)) ||
+       ((verts[0].y<verts[3].y)!=(verts[1].y<verts[2].y))
+       ) {
+      draw_swap(&verts[3], &verts[0]);
+    }
+    */
 
-    float32 ang=draw_scanLogGetAngle(p_log, -2);
-    if(p_log->highly_acute && ((ang>0.2 && draw_euclideanDistSquared(&p_last_grad->mid, &p_before_last_grad->mid)<=1) ||
-			       (ang==0 && (BSGN(p_before_last_grad->fd_signed.x)!=BSGN(p_last_grad->fd_signed.x) || BSGN(p_before_last_grad->fd_signed.y)!=BSGN(p_last_grad->fd_signed.y))))) {
+    DO_INFO(float32 prev_ang=draw_scanLogGetAngle(p_log, -2));
+    DO_INFO(float32 this_ang=draw_scanLogGetAngle(p_log, -1));
+
+    LOG_INFO("%s last iter: %i before last: %f, %f last mid: %f, %f angs: %f, %f v1: %f, %f v2: %f, %f v3: %f, %f v4: %f, %f",
+	     this_ang>PI_OVER_2000?"":"straight", last_iter, 
+	     p_before_last_grad->mid.x, p_before_last_grad->mid.y,
+	     p_last_grad->mid.x, p_last_grad->mid.y,
+	     prev_ang,
+	     this_ang,
+	     verts[0].x, verts[0].y,
+	     verts[1].x, verts[1].y,
+	     verts[2].x, verts[2].y,
+	     verts[3].x, verts[3].y
+	     );
+    
+    float32 before_ang=draw_scanLogGetAngle(p_log, -2), last_ang=draw_scanLogGetAngle(p_log, -1);
+    if(p_log->highly_acute && (
+			       (
+				(before_ang>0.2 && draw_euclideanDistSquared(&p_last_grad->mid, &p_before_last_grad->mid)<=1) ||
+				(before_ang==0 && (BSGN(p_before_last_grad->fd_signed.x)!=BSGN(p_last_grad->fd_signed.x) || BSGN(p_before_last_grad->fd_signed.y)!=BSGN(p_last_grad->fd_signed.y)))
+				) ||
+			       (last_ang>0.2 && draw_euclideanDistSquared(&p_grad->mid, &p_last_grad->mid)<=1)
+			       )
+       ) {
       /* We filter out instance based on distance as where 2
        * successive draw_grads have a gap between their mid vertices,
        * as just rendering a blot at one mid (instead of a quad
@@ -1738,32 +1819,6 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
 
       //bool about_turn=((p_last_grad->fd_signed.x>=0)!=(p_before_last_grad->fd_signed.x>=0) || ((p_last_grad->fd_signed.y>=0)!=(p_before_last_grad->fd_signed.y>=0)))  &&
       //p_last_grad->fd_signed.x*p_before_last_grad->fd_signed.y==p_last_grad->fd_signed.y*p_before_last_grad->fd_signed.x;
-
-      const uint32 fst_norm_vert=0;
-      const uint32 snd_norm_vert=1;
-      draw_vert last_delta_norm=draw_diff(&verts[fst_norm_vert], &verts[snd_norm_vert]);
-      draw_vert last_delta_inverse=draw_norm(&last_delta_norm);
-      if(before_last_iter>0) {
-      
-	draw_grad *p_pre_before_last_grad=&p_grad_agg->p_iter_2_grad[before_last_iter-1];
-	float32 last_norm_m=last_delta_norm.y/last_delta_norm.x;
-	if(isfinite(last_norm_m)) {
-	  float32 last_norm_c=rtu_lineC(verts[fst_norm_vert].x, verts[fst_norm_vert].y, last_norm_m);
-	  sint32 side_of_norm=draw_sideOfLine(last_norm_m, last_norm_c, &p_pre_before_last_grad->mid);
-	  draw_vert last_delta_inverse_pt=draw_add(&verts[fst_norm_vert], &last_delta_inverse);
-	  sint32 proposed_next_side_of_norm=draw_sideOfLine(last_norm_m, last_norm_c, &last_delta_inverse_pt);
-	  if(side_of_norm==proposed_next_side_of_norm) {
-	    last_delta_inverse=draw_neg(&last_delta_inverse);	  
-	  }
-	} else {
-	  //perfectly vertical
-	  if((p_pre_before_last_grad->mid.x<last_delta_norm.x) == (last_delta_inverse.x<0)) {
-	    last_delta_inverse=draw_neg(&last_delta_inverse);
-	  }
-	}
-      } else {
-	last_delta_inverse=p_before_last_grad->fd_signed;
-      }
 
       //if(about_turn) {
       //  last_delta_inverse=draw_neg(&last_delta_inverse);	  
@@ -1809,27 +1864,49 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
 	draw_blotContinue(&p_before_last_grad->mid, p_blot_end_fd, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
 	}
       */
-      LOG_INFO("before_fd: %f,%f last_fd: %f,%f", last_delta_inverse.x, last_delta_inverse.y, p_before_last_grad->fd_signed.x, p_before_last_grad->fd_signed.y);
-      draw_blotContinue(&p_before_last_grad->mid, &last_delta_inverse, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
+      /*
+      const uint32 fst_idx=0;
+      const uint32 snd_idx=1;
+      draw_vert sum=draw_add(&verts[fst_idx], &verts[snd_idx]);
+      draw_vert mid_pt=draw_by(&sum, 0.5);
+      */
+      draw_vert stroke_dir;
+      if(before_last_iter>0) {
+	stroke_dir=draw_strokeDirectionalVec(p_before_last_grad, &p_grad_agg->p_iter_2_grad[before_last_iter-1].mid);
+      } else {
+	stroke_dir=p_before_last_grad->fd_signed;
+      }
+      LOG_INFO("before_fd. mid: %f,%f dir: %f,%f", p_before_last_grad->mid.x, p_before_last_grad->mid.y, stroke_dir.x, stroke_dir.y);
+
+      draw_blotContinue(&p_before_last_grad->mid, &stroke_dir, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
+      /*
+      const uint32 fst_rev_idx=3;
+      const uint32 snd_rev_idx=2;
+      draw_vert rev_sum=draw_add(&verts[fst_rev_idx], &verts[snd_rev_idx]);
+      draw_vert rev_mid_pt=draw_by(&rev_sum, 0.5);
+      //TODO the following when iter==p_grad_agg->max_iter+1
+      draw_vert reverse_stroke_dir=draw_strokeDirectionalVec(&p_grad->mid, &verts[fst_rev_idx], &verts[snd_rev_idx]);
+      LOG_INFO("last_fd. mid: %f,%f dir: %f,%f", p_last_grad->mid.x, p_last_grad->mid.y, reverse_stroke_dir.x, reverse_stroke_dir.y);
+
+      draw_blotContinue(&rev_mid_pt, &reverse_stroke_dir, p_log->p_b->w.breadth, p_log->p_b->w.blur_width, p_log->p_b->col, p_globals);
+      */
+      /*
+      if(last_iter==112) {
+	draw_vertDot(&verts[0], 0xff0000ff, p_globals);
+	draw_vertDot(&verts[1], 0xff0000ff, p_globals);
+	draw_vertDot(&p_grad_agg->p_iter_2_grad[before_last_iter-1].mid, 0xffff00ff, p_globals);
+      }
+      */
+      /*
+      if(last_iter==114) {
+	draw_vertDot(&verts[2], 0xff00ff00, p_globals);
+	draw_vertDot(&verts[3], 0xff00ff00, p_globals);
+	draw_vertDot(&p_grad->mid, 0xffffff00, p_globals);
+      }
+      */
       return;
     }
 
-    /*
-    DO_INFO(float32 prev_ang=draw_scanLogGetAngle(p_log, -2));
-    DO_INFO(float32 this_ang=draw_scanLogGetAngle(p_log, -1));
-
-    LOG_INFO("%s last iter: %i before last: %f, %f last mid: %f, %f angs: %f, %f v1: %f, %f v2: %f, %f v3: %f, %f v4: %f, %f",
-	     this_ang>PI_OVER_2000?"":"straight", last_iter, 
-	     p_before_last_grad->mid.x, p_before_last_grad->mid.y,
-	     p_last_grad->mid.x, p_last_grad->mid.y,
-	     prev_ang,
-	     this_ang,
-	     verts[0].x, verts[0].y,
-	     verts[1].x, verts[1].y,
-	     verts[2].x, verts[2].y,
-	     verts[3].x, verts[3].y
-	     );
-    */
     draw_onIterRowCb *p_row_renderer;
     if(p_last_grad->on_x) {
       p_row_renderer=draw_rowNewSegmentRangeOnX;
@@ -1837,10 +1914,12 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
       p_row_renderer=draw_rowNewSegmentRangeOnY;
     }
     draw_gradsSetIterRange(p_grad_agg, UINT_MAX, last_iter);
-    //if(last_iter==84) {
+    //if(last_iter==111) {
     draw_scanLogFill(p_log, verts, 4, p_globals, p_row_renderer, &p_grad_agg->grads_if);
       //}
-    //draw_vertDot(&p_last_grad->mid, 0xffffffff, p_globals);
+    //if(last_iter==115) {
+    //  draw_scanLogFill(p_log, verts, 4, p_globals, p_row_renderer, &p_grad_agg->grads_if);
+    //}
     draw_gradMarkDirty(p_last_grad, draw_gradsTrans(p_grad_agg, UINT_MAX, last_iter), &p_globals->canvas);
   }
 }
@@ -3056,6 +3135,21 @@ void draw_canvasMarkDirtyRadius(draw_canvas *p_canvas, const draw_vert *p_0, con
       .rb={
 	.x=p_0->x+half_width,
 	.y=p_0->y+half_width
+      }
+    };
+  draw_canvasMarkDirtyRect(p_canvas, &bnds);
+}
+
+void draw_canvasMarkDirtyPt(draw_canvas *p_canvas, const uint32 x, const uint32 y) {
+  draw_rect bnds=
+    {
+      .lt={
+	.x=x,
+	.y=y
+      },
+      .rb={
+	.x=x,
+	.y=y
       }
     };
   draw_canvasMarkDirtyRect(p_canvas, &bnds);

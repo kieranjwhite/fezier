@@ -874,14 +874,18 @@ inline void draw_dot(uint32 x, uint32 y, uint32 col, const draw_globals *p_globa
   draw_onOffset(offset, col, p_globals);
 }
 
+void draw_canvasMarkDirtyPt(draw_canvas *p_canvas, const uint32 x, const uint32 y);
+
 #define IMAGE_BUF_SCREEN_WIDTH 1600
 #define IMAGE_BUF_SCREEN_HEIGHT 2195
-inline void draw_vertDot(const draw_vert *p_0, uint32 col, const draw_globals *p_globals) {
+inline void draw_vertDot(const draw_vert *p_0, uint32 col, draw_globals *p_globals) {
   uint32 x=p_0->x, y=p_0->y;
   if(x>=IMAGE_BUF_SCREEN_WIDTH || y>=IMAGE_BUF_SCREEN_HEIGHT)  {
     return;
   }
   draw_dot(x, y, col, p_globals);
+  draw_canvasMarkDirtyPt(&p_globals->canvas, x, y);
+  draw_canvasMergeDirt(&p_globals->canvas);
 }
 
 inline float32 draw_plotBezInitC_0(float32 fdd, float32 step) {

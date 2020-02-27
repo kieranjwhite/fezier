@@ -26,8 +26,8 @@
      inkscape:pageopacity="0.0"
      inkscape:pageshadow="2"
      inkscape:zoom="2.8"
-     inkscape:cx="1954.4393"
-     inkscape:cy="928.16349"
+     inkscape:cx="2002.7856"
+     inkscape:cy="927.4492"
      inkscape:document-units="mm"
      inkscape:current-layer="layer1"
      showgrid="false"
@@ -631,5 +631,41 @@
          x="451.90616"
          id="tspan4599"
          sodipodi:role="line">last_grad.mid +/- last_grad.half_delta</tspan></text>
+    <text
+       xml:space="preserve"
+       style="font-style:normal;font-weight:normal;font-size:4.23333311px;line-height:1.25;font-family:sans-serif;letter-spacing:0px;word-spacing:0px;fill:#000000;fill-opacity:1;stroke:none;stroke-width:0.26458332"
+       x="432.31012"
+       y="-9.859972"
+       id="text3883"><tspan
+         sodipodi:role="line"
+         id="tspan3881"
+         x="432.31012"
+         y="-9.859972"
+         style="stroke-width:0.26458332">grad.fd_signed.x/grad.fd_signed.y is </tspan><tspan
+         sodipodi:role="line"
+         x="432.31012"
+         y="-4.5683055"
+         style="stroke-width:0.26458332"
+         id="tspan3885">the slope from last_grad.mid to </tspan><tspan
+         sodipodi:role="line"
+         x="432.31012"
+         y="0.72336078"
+         style="stroke-width:0.26458332"
+         id="tspan3887">grad.mid</tspan><tspan
+         sodipodi:role="line"
+         x="432.31012"
+         y="6.015027"
+         style="stroke-width:0.26458332"
+         id="tspan3889">last_grad.fd_signed and </tspan><tspan
+         sodipodi:role="line"
+         x="432.31012"
+         y="11.306694"
+         style="stroke-width:0.26458332"
+         id="tspan3891">before_last_grad.fd_signed are</tspan><tspan
+         sodipodi:role="line"
+         x="432.31012"
+         y="16.59836"
+         style="stroke-width:0.26458332"
+         id="tspan3893">defined similarly</tspan></text>
   </g>
 </svg>
