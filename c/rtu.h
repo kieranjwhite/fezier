@@ -80,7 +80,7 @@ inline uint32 rtu_abs(sint32 v) {
 #define LOG_ERROR_LEVEL 2
 #define LOG_NO_REPORTING_LEVEL 3
 
-#define LOG_LEVEL LOG_ASSERT_LEVEL
+#define LOG_LEVEL LOG_ERROR_LEVEL
 
 typedef struct {
   uint32 divisor_limit;

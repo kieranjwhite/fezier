@@ -1698,6 +1698,7 @@ draw_vert draw_strokeDirectionalVec(const draw_vert *p_prev_mid, const draw_vert
 draw_vert draw_strokeDirectionalVec(const draw_grad * const p_grad, const draw_vert *p_prev_mid) {
   //draw_vert last_delta_norm=draw_diff(p_0, p_1);
   //draw_vert last_delta_inverse=draw_norm(&last_delta_norm);
+  LOG_INFO("strokeDirectionalVec. fd: %f,%f mid: %f,%f prev: %f,%f", p_grad->fd_signed.x, p_grad->fd_signed.y, p_grad->mid.x, p_grad->mid.y, p_prev_mid->x, p_prev_mid->y);
   draw_vert norm=draw_norm(&p_grad->fd_signed);
   float32 norm_m=norm.y/norm.x;
   if(isfinite(norm_m)) {
@@ -1747,12 +1748,6 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
 
     LOG_ASSERT(zerothYDist>=thirdYDist, "0th vertex is closer to last_grad normal than the 3d");
     LOG_ASSERT(firstYDist>=secondYDist, "1st vertex is closer to last_grad normal than the 2nd");
-
-    if(last_iter==111) {
-      __asm__("nop");
-      __asm__("nop");
-      __asm__("nop");
-    }
     
     if(iter<=p_grad_agg->max_iter) {
       draw_grad *p_grad=&p_grad_agg->p_iter_2_grad[iter];
@@ -1779,29 +1774,31 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
     }
     */
 
-    DO_INFO(float32 prev_ang=draw_scanLogGetAngle(p_log, -2));
-    DO_INFO(float32 this_ang=draw_scanLogGetAngle(p_log, -1));
-
+    float32 before_ang=draw_scanLogGetAngle(p_log, -2), last_ang=draw_scanLogGetAngle(p_log, -1);
     LOG_INFO("%s last iter: %i before last: %f, %f last mid: %f, %f angs: %f, %f v1: %f, %f v2: %f, %f v3: %f, %f v4: %f, %f",
-	     this_ang>PI_OVER_2000?"":"straight", last_iter, 
+	     last_ang>PI_OVER_2000?"":"straight", last_iter, 
 	     p_before_last_grad->mid.x, p_before_last_grad->mid.y,
 	     p_last_grad->mid.x, p_last_grad->mid.y,
-	     prev_ang,
-	     this_ang,
+	     before_ang,
+	     last_ang,
 	     verts[0].x, verts[0].y,
 	     verts[1].x, verts[1].y,
 	     verts[2].x, verts[2].y,
 	     verts[3].x, verts[3].y
 	     );
     
-    float32 before_ang=draw_scanLogGetAngle(p_log, -2), last_ang=draw_scanLogGetAngle(p_log, -1);
-    if(p_log->highly_acute && (
-			       (
-				(before_ang>0.2 && draw_euclideanDistSquared(&p_last_grad->mid, &p_before_last_grad->mid)<=1) ||
-				(before_ang==0 && (BSGN(p_before_last_grad->fd_signed.x)!=BSGN(p_last_grad->fd_signed.x) || BSGN(p_before_last_grad->fd_signed.y)!=BSGN(p_last_grad->fd_signed.y)))
-				) ||
-			       (last_ang>0.2 && draw_euclideanDistSquared(&p_grad->mid, &p_last_grad->mid)<=1)
-			       )
+    if(p_log->highly_acute &&
+       (
+	(
+	 (before_ang>0.2 && draw_euclideanDistSquared(&p_last_grad->mid, &p_before_last_grad->mid)<=1) ||
+	 (before_ang==0 && p_before_last_grad->quadrant!=p_last_grad->quadrant)  || 
+	 (p_before_last_grad->mid.x==p_last_grad->mid.x && p_before_last_grad->mid.y==p_last_grad->mid.y)
+	 ) ||
+	(
+	 (last_ang>0.2 && draw_euclideanDistSquared(&p_grad->mid, &p_last_grad->mid)<=1)// ||
+	 //(last_ang==0 && p_before_last_grad->quadrant!=p_last_grad->quadrant)
+	 )
+	)
        ) {
       /* We filter out instance based on distance as where 2
        * successive draw_grads have a gap between their mid vertices,
@@ -1914,12 +1911,7 @@ void draw_coreRender(draw_scanLog *p_log, draw_grads *p_grad_agg, uint32 iter, d
       p_row_renderer=draw_rowNewSegmentRangeOnY;
     }
     draw_gradsSetIterRange(p_grad_agg, UINT_MAX, last_iter);
-    //if(last_iter==111) {
     draw_scanLogFill(p_log, verts, 4, p_globals, p_row_renderer, &p_grad_agg->grads_if);
-      //}
-    //if(last_iter==115) {
-    //  draw_scanLogFill(p_log, verts, 4, p_globals, p_row_renderer, &p_grad_agg->grads_if);
-    //}
     draw_gradMarkDirty(p_last_grad, draw_gradsTrans(p_grad_agg, UINT_MAX, last_iter), &p_globals->canvas);
   }
 }
