@@ -2041,8 +2041,8 @@ void draw_coreInitGrad(
 }
 
 draw_vert draw_bezNext(draw_bez *p_bez, const draw_globals *p_globals) {
-    LOG_ASSERT(p_bez->f_x_t.x<INT_MAX, "f_x_t.x too large: %f", p_bez->f_x_t.x);
-    LOG_ASSERT(p_bez->f_x_t.y<INT_MAX, "f_x_t.y too large: %f", p_bez->f_x_t.y);
+  LOG_ASSERT(p_bez->f_x_t.x<(float64)INT_MAX, "f_x_t.x too large: %f", p_bez->f_x_t.x);
+  LOG_ASSERT(p_bez->f_x_t.y<(float64)INT_MAX, "f_x_t.y too large: %f", p_bez->f_x_t.y);
 
     p_bez->f_x_t.x=draw_plotBezUpdateFXT(p_bez->f_x_t.x, p_bez->fd_times_t.x, p_bez->c_0.x);
     p_bez->f_x_t.y=draw_plotBezUpdateFXT(p_bez->f_x_t.y, p_bez->fd_times_t.y, p_bez->c_0.y);

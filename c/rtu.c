@@ -221,7 +221,20 @@ bool rtu_isMAcuteBetween(float32 m1, float32 m2, float32 mInner) {
 
 #ifdef EMSCRIPTEN
 
-extern void rtu_simpleLog(const sint8 *p_level, const sint8 *p_file, uint32 line, const sint8 *pMsg);
+#include <emscripten.h>
+
+EM_JS(void, rtu_simpleLog, (const char *p_level, const char *p_file, int line, const char *pMsg), {
+    glb().rtu.log(UTF8ToString(p_level)+
+		  UTF8ToString(p_file)+':'+
+		  line+'. '+
+		  UTF8ToString(pMsg)); 
+    /*
+   console.log(UTF8ToString(p_level)+
+		  UTF8ToString(p_file)+':'+
+		  line+'. '+
+		  UTF8ToString(pMsg));
+    */
+});
 
 #define G_RTU_LINE_LEN 512
 sint8 G_RTU_LINE[G_RTU_LINE_LEN];
@@ -235,7 +248,7 @@ void rtu_log(const sint8 * p_level, const sint8 * p_file, uint32 line, const sin
     G_RTU_LINE[G_RTU_LINE_LEN-1]=0;
   }
     
-  rtu_simpleLog(p_level, p_file, line, G_RTU_LINE);
+  rtu_simpleLog(p_level, p_file, (sint32)line, G_RTU_LINE);
 }
 
 #else

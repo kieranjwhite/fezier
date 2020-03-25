@@ -43,3 +43,146 @@ y &= m_2 \times x +c_2
 {v3}_y &= {fd_signed}_{grad}{v3}_x+c
 \end{align*}
 
+* Brush size progress bar
+** nomenclature
+*** $\mathit{MP}$ is MAX_PROGRESS in the source, 200 currently 
+*** $\mathit{HS}$ is HALF_SIZE, 30 currently
+*** $s$ is size, currently ranges from 0 to $\mathit{ms}$, should range from 1 to $\mathit{ms}$
+*** $p$ is pProg, ranges from 0 to $\mathit{MP}-1$
+*** $\mathit{ms}$ is largest brush size
+*** $\mathit{hs}=$ if $\mathit{HS}<\mathit{ms}$
+**** $\mathit{HS}$
+*** else
+**** $\frac{\mathit{ms}}{2}$
+*** $\mathit{ohm}=\mathit{ms}-\mathit{hs}$
+** progress to size
+*** Results
+| p    | s                                          |
+|------+--------------------------------------------|
+| 0    | 0                                          |
+| MP-1 | 0.3+0.99ms (HS<ms) or (1.99*ms)/2 (HS>=ms) |
+|      |                                            |
+
+*** if $p<\frac{\mathit{MP}}{2}$
+**** $s=\frac{p \times \mathit{hs}}{\frac{\mathit{MP}}{2}}$
+***** Examples
+****** if $p=0$
+******* $s=\frac{0 \times \mathit{hs}}{\frac{\mathit{MP}}{2}}=0$
+****** if $p=\mathit{MP}-1$, can only happen if $\mathit{MP}<2$ which it isn't currently
+*******
+\begin{align*}
+s&= \frac{(\mathit{MP}-1) \times \mathit{hs}}{\frac{\mathit{MP}}{2}} \\ 
+ &= \frac{2 \times (\mathit{MP}-1) \times \mathit{hs}}{\mathit{MP}} \\
+ &= \frac{2 \times \mathit{MP} \times \mathit{hs} - 2 \times \mathit{hs}}{\mathit{MP}} \\
+ &= 2 \times \mathit{hs} - \frac{2 \times \mathit{hs}}{MP} \\
+ &= 59.7 \enspace \mathtt{or} \enspace \frac{199 \times \mathit{ms}}{200}\\
+\end{align*}
+*** else
+****  
+\begin{align*}
+s &= \mathit{hs}+\frac{p-\frac{\mathit{MP}}{2}}{\mathit{hp}} \times \mathit{ohm} \\
+&= \mathit{hs}+\frac{p-\frac{\mathit{MP}}{2}}{\frac{\mathit{MP}}{2}} \times (\mathit{ms}-\mathit{hs}) \\
+&= \mathit{hs}+(\frac{p}{\frac{\mathit{MP}}{2}}-1) \times (\mathit{ms}-\mathit{hs}) \\
+&= \mathit{hs}+(2 \frac{p}{\mathit{MP}}-1) \times (\mathit{ms}-\mathit{hs}) \\
+\end{align*}
+***** where $\mathit{HS}<\mathit{ms}$, affects so $\mathit{hs}=\mathit{HS}$
+****** 
+\begin{align*}
+s &= \mathit{hs}+(2 \frac{p}{\mathit{MP}}-1) \times (\mathit{ms}-\mathit{hs}) \\
+  &= \mathit{HS}+(2 \frac{p}{\mathit{MP}}-1) \times (\mathit{ms}-\mathit{HS}) \\
+\end{align*}
+******* Examples
+******** if $p=0$, can only happen if $MP \leq 0$, contradiction
+******** if $p=\mathit{MP}-1$
+********* 
+\begin{align*}
+s &= \mathit{HS}+(2 \frac{p}{\mathit{MP}}-1) \times (\mathit{ms}-\mathit{HS}) \\
+  &= 30 + (2 \times \frac{200-1}{200}-1) \times (\mathit{ms} - 30) \\
+  &= 30 + 0.99 \times (\mathit{ms} - 30) \\
+  &= 0.3 + 0.99 \times \mathit{ms} \\
+\end{align*}
+
+***** otherwise (i.e. $\mathit{HS} \ge \mathit{ms}$) so $\mathit{hs}=\frac{\mathit{ms}}{2}$
+****** 
+\begin{align*}
+s &= \mathit{hs}+(2 \frac{p}{\mathit{MP}}-1) \times (\mathit{ms}-\mathit{hs}) \\
+&= \frac{\mathit{ms}}{2}+(2 \frac{p}{\mathit{MP}}-1) \times (\mathit{ms}-\frac{\mathit{ms}}{2}) \\
+\end{align*}
+******* Examples
+******** if $p=0$, can only happen if $MP \leq 0$
+******** if $p=\mathit{MP}-1$
+********* 
+\begin{align*}
+s &= \frac{\mathit{ms}}{2}+(2 \frac{p}{\mathit{MP}}-1) \times (\mathit{ms}-\frac{\mathit{ms}}{2}) \\
+  &= \frac{\mathit{ms}}{2}+(2 \frac{\mathit{MP}-1}{\mathit{MP}}-1) \times (\mathit{ms}-\frac{\mathit{ms}}{2}) \\
+  &= \frac{\mathit{ms}}{2}+(2 \frac{\mathit{MP}-1}{\mathit{MP}}-1) \times \frac{\mathit{ms}}{2} \\
+  &= \frac{\mathit{ms}}{2}+\frac{\mathit{MP}-2}{2 \times \mathit{MP}} \times \mathit{ms} \\
+  &= \frac{\mathit{ms} \times \mathit{MP}}{2 \times \mathit{MP}}+\frac{\mathit{ms} \times (\mathit{MP}-2)}{2 \times \mathit{MP}} \\
+  &= \frac{\mathit{ms} \times \mathit{MP} + \mathit{ms} \times (\mathit{MP}-2)}{2 \times \mathit{MP}} \\
+  &= \frac{\mathit{ms} \times (2 \times \mathit{MP}-2)}{2 \times \mathit{MP}} \\
+  &= \frac{1.99 \times \mathit{ms}}{2} \\
+\end{align*}
+** size to progress
+*** Results
+|----------------------+----|
+| s                    | p  |
+|----------------------+----|
+| 0                    | 0  |
+| ms                   | MP |
+| (1.99*ms)/2 (HS>=ms) |    |
+| 0.3+0.99ms (HS<ms)   |    |
+
+*** if $s>\mathit{ms}$
+**** $p=\mathit{MP}-1$
+***** Examples
+****** $s=0$, can only be possible if ms is -ve. Safe to say this is impossible
+****** $s=\mathit{ms}$, contradiction
+*** else if $s<\mathit{hs}$
+**** $p=\frac{s \times \frac{\mathit{MP}}{2}}{\mathit{HS}}$
+***** Examples
+****** $s=0$
+******* 
+\begin{align*}
+p &= \frac{s \times \frac{\mathit{MP}}{2}}{\mathit{HS}} \\
+  &= \frac{0 \times \frac{\mathit{MP}}{2}}{\mathit{HS}} \\
+  &= 0 
+\end{align*}
+****** $s=\mathit{ms}$, contradiction ($s<\mathit{hs} \implies \mathit{ms}<\mathit{hs} \implies \mathit{hs} \ge \mathit{ms}$) but $\mathit{ms}<\mathit{hs} \implies \mathit{HS}<\mathit{ms} \land \mathit{hs}=\mathit{HS} \lor \mathit{HS} \ge \mathit{ms} \land \mathit{hs}=\frac{\mathit{ms}}{2}$ and neither of these 2 clauses can be true.
+*** else
+**** $p=\frac{\mathit{MP}}{2}+\frac{s-\mathit{hs}}{\mathit{ohm}} \times \frac{\mathit{MP}}{2}$
+\begin{align*}
+p&=\frac{\mathit{MP}}{2}+\frac{s-\mathit{hs}}{\mathit{ohm}} \times \frac{\mathit{MP}}{2}\\
+&=\frac{\mathit{MP}}{2}+\frac{s-\mathit{hs}}{\mathit{ms}-\mathit{hs}} \times \frac{\mathit{MP}}{2}\\
+&=\frac{\mathit{MP}}{2} \times (1 + \frac{s-\mathit{hs}}{\mathit{ms}-\mathit{hs}})\\
+\end{align*}
+***** where $\mathit{HS}<\mathit{ms}$
+****** 
+\begin{align*}
+p&=\frac{\mathit{MP}}{2} \times (1 + \frac{s-\mathit{hs}}{\mathit{ms}-\mathit{hs}})\\
+&=\frac{\mathit{MP}}{2} \times (1 + \frac{s-\mathit{HS}}{\mathit{ms}-\mathit{HS}})\\
+\end{align*}
+******* Examples
+****** $s=0$, can only possible if $\mathit{ms}$ is -ve. Safe to say this is impossible
+****** $s=\mathit{ms}$
+******* 
+\begin{align*}
+p &= \frac{\mathit{MP}}{2} \times (1 + \frac{s-\mathit{HS}}{\mathit{ms}-\mathit{HS}}) \\
+  &= \frac{\mathit{MP}}{2} \times (1 + \frac{\mathit{ms}-\mathit{HS}}{\mathit{ms}-\mathit{HS}}) \\
+  &= \mathit{MP}
+\end{align*}
+***** otherwise
+****** 
+\begin{align*}
+p&=\frac{\mathit{MP}}{2} \times (1 + \frac{s-\mathit{hs}}{\mathit{ms}-\mathit{hs}})\\
+&=\frac{\mathit{MP}}{2} \times (1 + \frac{s-\frac{\mathit{ms}}{2}}{\mathit{ms}-\frac{\mathit{ms}}{2}})\\
+\end{align*}
+******* Examples
+******** $s=0$, contraction given that $\mathit{HS} \ge 0$: $s \ge \mathit{hs} \implies 0 \ge \mathit{hs} \iff \mathit{ms} \le 0$
+******** $s=\mathit{ms}$
+********* 
+\begin{align*}
+p &=\frac{\mathit{MP}}{2} \times (1 + \frac{s-\frac{\mathit{ms}}{2}}{\mathit{ms}-\frac{\mathit{ms}}{2}})\\
+  &=\frac{\mathit{MP}}{2} \times (1 + \frac{\mathit{ms}-\frac{\mathit{ms}}{2}}{\mathit{ms}-\frac{\mathit{ms}}{2}})\\
+  &= \mathit{MP}
+\end{align*}
+

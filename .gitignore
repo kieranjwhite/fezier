@@ -1,3 +1,5 @@
+.gitignore
+*~
 a.out
 TAGS
 c/draw_tiles.js.map
