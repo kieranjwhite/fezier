@@ -36,6 +36,8 @@ void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag)
   
   //p_data is assumed to be in RGBA format
 
+  //LOG_INFO("image_buf_commit. mag: %u", mag);
+  
   uint32 fullWidth=draw_canvasRenderedWidth(p_canvas);
   uint32 fullHeight=draw_canvasRenderedHeight(p_canvas);
   draw_rectInt *p_dirty=draw_canvasExtantDirty(p_canvas);
@@ -89,6 +91,7 @@ void image_buf_commit(SDL_Surface *p_surface, draw_canvas *p_canvas, uint32 mag)
     }
     //p_dest=(uint32 *)(((uint8 *)p_start_dest)+r*pitch);
   }
+
 #endif
   draw_canvasResetDirty(p_canvas);
 }

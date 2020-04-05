@@ -428,9 +428,10 @@ typedef struct {
   uint32 buf_height;
 
   draw_vert last_fd;
-#define DRAW_STROKE_IN_STROKE 0x00
-#define DRAW_STROKE_MOVED 0x01
-#define DRAW_STROKE_RENDERED 0x02
+#define DRAW_STROKE_INITIALISED 0x00
+#define DRAW_STROKE_IN_STROKE 0x01
+#define DRAW_STROKE_MOVED 0x02
+#define DRAW_STROKE_RENDERED 0x03
   uint32 state; //if this is true, the next segment (rendered in draw_strokeQuadTo) will include a full start-cap. Otherwise only the join will be generated
 } draw_stroke;
 
@@ -773,12 +774,12 @@ inline draw_rect draw_calcTerminalBoxFromTan(const draw_vert *p_0, const draw_ve
 }
 
 inline draw_rect64 draw_calcTerminalBox(const draw_vert *p_0, const draw_vert *p_fd, const float64 half_width) {
-  LOG_INFO("draw_calcTerminalBox. p_0: %f,%f p_fd: %f,%f, half_width: %f", p_0->x, p_0->y, p_fd->x, p_fd->y, half_width);
+  //LOG_INFO("draw_calcTerminalBox. p_0: %f,%f p_fd: %f,%f, half_width: %f", p_0->x, p_0->y, p_fd->x, p_fd->y, half_width);
   draw_vert64 tan=draw_fd2Tan64(p_fd, half_width); //normalises *p_fd's magnitude
-  LOG_INFO("draw_calcTerminalBox. tan: %f,%f", tan.x, tan.y);
+  //LOG_INFO("draw_calcTerminalBox. tan: %f,%f", tan.x, tan.y);
   draw_vert64 norm=draw_norm64(&tan); //gets the normal (ie perpendicular)
   draw_rect64 result= draw_boundingBox64(p_0, &norm);
-  LOG_INFO("draw_calcTerminalBox. result: lt %f,%f rb %f,%f", result.lt.x, result.lt.y, result.rb.x, result.rb.y);
+  //LOG_INFO("draw_calcTerminalBox. result: lt %f,%f rb %f,%f", result.lt.x, result.lt.y, result.rb.x, result.rb.y);
   return result;
 }
 
