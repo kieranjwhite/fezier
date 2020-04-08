@@ -96,7 +96,7 @@ extern inline uint32 draw_canvasRenderedHeight(const draw_canvas *p_canvas);
 extern inline uint32 draw_canvasWidth(const draw_canvas *p_canvas);
 extern inline uint32 draw_canvasHeight(const draw_canvas *p_canvas);
 extern inline void draw_onOffset(uint32 pOffset, uint32 col, const draw_globals *p_globals);
-extern inline void draw_vertDot(const draw_vert *p_0, uint32 col, draw_globals *p_globals);
+//extern inline void draw_vertDot(const draw_vert *p_0, uint32 col, draw_globals *p_globals);
 extern inline void draw_dot(uint32 x, uint32 y, uint32 col, const draw_globals *p_globals);
 extern inline draw_vert draw_copy(const draw_vert *p_0);
 extern inline void draw_swap(draw_vert *p_v0, draw_vert *p_v1);
@@ -340,7 +340,7 @@ float draw_canvasSetAndGetScalingIdx(draw_canvas *p_canvas, const uint32 opacity
   //blur_width is the number of pixels it takes for a gradiant to go from opacity pixel opacity to zero opacity
 
   if(p_canvas->devicePixelRatio<0) {
-    //LOG_INFO("no scaling allowed");
+    LOG_INFO("no scaling allowed");
     return 0;
   }
 
@@ -352,8 +352,8 @@ float draw_canvasSetAndGetScalingIdx(draw_canvas *p_canvas, const uint32 opacity
   */
   
   float32 scaling_factor=MIN(1,opacity/(p_canvas->devicePixelRatio*blur_width*DRAW_SMALLEST_VISIBLE_OPACITY_CHANGE_PER_STD_PIXEL));
-  //LOG_INFO("opacity: 0x%x blur: %f pix ratio: %f scaling: %f", opacity, blur_width, p_canvas->devicePixelRatio, scaling_factor);
   p_canvas->scaling_idx=draw_canvasFindStdScalingIdx(p_canvas, scaling_factor);
+  LOG_INFO("opacity: 0x%x blur: %f pix ratio: %f scaling: %f idx: %u", opacity, blur_width, p_canvas->devicePixelRatio, scaling_factor, p_canvas->scaling_idx);
   float32 std_scaling_factor=p_canvas->std_scaling_factors[p_canvas->scaling_idx];
 
   LOG_ASSERT(p_canvas->std_mag_factors[p_canvas->scaling_idx]*(uint32)(p_canvas->renderedW*std_scaling_factor)==p_canvas->renderedW, "p_canvas->renderedW, %u must be divisible by all standard scalling factors", p_canvas->renderedW);
@@ -2267,8 +2267,10 @@ void draw_scanBrushLogInit(draw_scanBrushLog *p_b, const float32 breadth, const 
     //TODO might be possible to change scaling idx to something faster after adjusting opacity, when breadth is p_b->w.width is <1 (see below)
     scaling_idx=draw_canvasSetAndGetScalingIdx(p_canvas, col>>DRAW_OPACITY_SHIFT, blur_width);
   } else {
+    LOG_INFO("draw_scanBrushLogInit. not recalculating scaling");
     scaling_idx=0;
   }
+  LOG_INFO("draw_scanBrushLogInit. scaling_idx: %u", scaling_idx);
   p_b->scaling_factor=p_canvas->std_scaling_factors[scaling_idx];
   p_b->mag_factor=p_canvas->std_mag_factors[scaling_idx];
   //LOG_INFO("mag: %u breadth: %f blur: %f", p_b->mag_factor, breadth, blur_width);

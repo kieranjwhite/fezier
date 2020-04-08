@@ -8,10 +8,10 @@
 
 uint32 tests_run=0;
 
-jlong Java_com_hourglassapps_tiles_render_CRenderEngine_renderInit(JNIEnv* env, jobject x, jint w, jint h) {
+jlong Java_com_hourglassapps_tiles_render_CRenderEngine_renderInit(JNIEnv* env, jobject x, jint w, jint h, jfloat devicePixelRatio) {
 	draw_globals *p_globals=draw_globalsInit();
 	if(p_globals!=NULL) {
-		LOG_INFO("renderInit. globals: 0x%x", p_globals);
+		LOG_INFO("renderInit. devicePixelRatio: %f globals: 0x%x", devicePixelRatio, p_globals);
 		//draw_globalsLoadR(p_globals);
 		p_globals->all_xs_pairs.p_y_2_starts = rtu_memAlloc(sizeof(sint32) * h);
 		if (p_globals->all_xs_pairs.p_y_2_starts == NULL) {
@@ -25,7 +25,7 @@ jlong Java_com_hourglassapps_tiles_render_CRenderEngine_renderInit(JNIEnv* env, 
 
 		rtu_initFastATan(DRAW_ATAN_DIVISORS, p_globals->p_rtu);
 		rtu_initFastDiv(DRAW_DIV_LIMIT, p_globals->p_rtu);
-		draw_canvasInit(&p_globals->canvas, w, h, -1);
+		draw_canvasInit(&p_globals->canvas, w, h, devicePixelRatio);
 		return (jlong)p_globals;
 	}
 	return (jlong)NULL;
